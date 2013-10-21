@@ -1,0 +1,3 @@
+[submodule "imposm-parser"]
+	path = imposm-parser
+	url = https://github.com/omniscale/imposm-parser.git
