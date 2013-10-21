@@ -99,6 +99,16 @@ def surfaceStringToInt(st):
     else:
         return surfaceTypeDict['unpaved']
 
+# Takes a tags dictionary and a list of keys and returns the value of the first
+# key in the dict that matches one from the list.  If no key is found in the
+# list of keys given, then the value passed to 'default' is returned instead.
+def coalesceValue(keys, tags, default):
+    for key in keys:
+        if key in tags:
+            return tags[key]
+
+    return default
+
 class SpatialObject(object):
     
     def __init__(self):
@@ -210,6 +220,21 @@ class Taxiway(SpatialObject):
 
         return ret
 
+class Windsock(SpatialObject):
+
+    def __init__(self, coord, lit):
+        self.coord = coord
+        if lit in ('yes', 'true', '1'):
+            self.lit = 1
+        else:
+            self.lit = 0
+
+    def buildGeometry(self, coordDict):
+        self.geometry = Point(self.coord)
+
+    def toString(self):
+        return '19 {0} {1} {2} WS\n'.format(self.coord[1], self.coord[0], self.lit)
+
 class Osm2apt_class(object):
 
     aerodromes = []
@@ -219,6 +244,7 @@ class Osm2apt_class(object):
     objectLists = []
     runways = [];    objectLists.append(runways)
     taxiways = [];   objectLists.append(taxiways)
+    windsocks = [];   objectLists.append(windsocks)
 
     coords = []
     coordDict = {}
@@ -227,6 +253,16 @@ class Osm2apt_class(object):
     def coordsCallback(self, coords):
         for c in coords:
             self.coords.append(c)
+
+    # Callback method to read all nodes which have tags on them
+    def nodesCallback(self, nodes):
+        for osmid, tags, coord in nodes:
+            if 'aeroway' in tags:
+                #node: aeroway=windsock
+                if tags['aeroway'] == 'windsock':
+                    print 'Windsock'
+                    lit = coalesceValue(('lit'), tags, 'no')
+                    self.windsocks.append(Windsock(coord, lit))
 
     # Callback method to process ways
     def waysCallback(self, ways):
@@ -353,16 +389,8 @@ class Osm2apt_class(object):
                         print 'NOTICE: Taxiway is abandoned, skipping. Way ID: ', osmid
                         continue
 
-                    # TODO: make a coalesce function which takes a tags
-                    # dictionary and a list of keys and returns the value of the
-                    # first key in the dict that matches one from the list.
-                    if 'ref' in tags:
-                        name = tags['ref']
-                    elif 'name' in tags:
-                        name = tags['name']
-                    else:
-                        # TODO: probably need to do something better here, WED requires a name for all taxiway segments this is just a hack for now to allow me to test them in game.
-                        name = 'T'
+                    # TODO: probably need to do something better here, WED requires a name for all taxiway segments this default value of 'T' is just a hack for now to allow me to test them in game.
+                    name = coalesceValue(('ref', 'name'), tags, 'T')
 
                     # Determine the taxiway surface type or assume 'concrete' if not specified.
                     if 'surface' in tags:
@@ -449,7 +477,7 @@ print '\n\n\n'
 print '=== Parsing OSM File ==='
 osm2apt = Osm2apt_class()
 
-parser = OSMParser(coords_callback=osm2apt.coordsCallback, ways_callback=osm2apt.waysCallback)
+parser = OSMParser(coords_callback=osm2apt.coordsCallback, nodes_callback=osm2apt.nodesCallback, ways_callback=osm2apt.waysCallback)
 parser.parse('Airports.osm')
 
 print '\n\n\n=== Results ==='
@@ -457,6 +485,7 @@ print '\n\n\n=== Results ==='
 print 'Successfully read in %s aerodromes\n' % len(osm2apt.aerodromes)
 print 'Successfully read in %s runways' % len(osm2apt.runways)
 print 'Successfully read in %s taxiways' % len(osm2apt.taxiways)
+print 'Successfully read in %s windsocks' % len(osm2apt.windsocks)
 
 print '\nRead in %s osm nodes' % len(osm2apt.coords)
 
@@ -472,6 +501,7 @@ there are this many remaining un-assosciated objects (all these numbers should\n
 be 0, as any un-assosciated objects will not be put in the output apt.dat file):'
 print "\t%s\tRunways" % len(osm2apt.runways)
 print "\t%s\tTaxiways" % len(osm2apt.taxiways)
+print "\t%s\tWindsocks" % len(osm2apt.windsocks)
 
 print '\n\n\n=== Outputing apt.dat ==='
 outputFile = open('apt.dat', 'w')
