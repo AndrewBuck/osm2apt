@@ -30,6 +30,21 @@ def nodesToCoords(nodes, coordDict):
 
     return coords
 
+def printArea(area):
+    ret = ''
+    if area.exterior.is_ccw:
+        coords = area.exterior.coords
+    else:
+        coords = reversed(area.exterior.coords)
+
+    for coord, isLast in lookahead(coords):
+        if not isLast:
+            ret += '111 {0} {1}\n'.format(coord[1], coord[0])
+        else:
+            ret += '113 {0} {1}\n'.format(coord[1], coord[0])
+
+    return ret
+
 def isAbandoned(tags):
     if 'abandoned' in tags:
         if tags['abandoned'] == 'yes':
@@ -133,7 +148,16 @@ class Aerodrome(SpatialObject):
             print 'Not building geometry for aerodrome since it is not closed.'
 
     def toString(self):
+        # Print out the main airport header line
         tempString = '1 {0} 0 0 {1} {2}\n'.format(self.ele, self.code, self.name)
+
+        # TODO: Print out the boundary area of the aerodrome.
+
+        # Loop over all of the taxiways and determine the unique set
+        # (automatically has no duplicates since it is a python set) of nodes
+        # used for the geometry of the taxiway network.
+        # TODO: This should also include nodes for the runways when the on-runway taxiways are added.
+        # TODO: If instead of just being a set this were a dictionary mapping nodes onto lists of ways this set could serve the same purpose but also be used to explor the topology of the taxiway network to find things like holding points, etc.
         taxiways = []
         taxiwayCoords = set()
         for obj in self.assosciatedObjects:
@@ -213,11 +237,7 @@ class Taxiway(SpatialObject):
 
     def toString(self):
         ret = '110 {0} 0.15 360 {1}\n'.format(self.surfaceInteger, self.name)
-        for coord, isLast in lookahead(reversed(self.concreteGeometry.exterior.coords)):
-            if not isLast:
-                ret += '111 {0} {1}\n'.format(coord[1], coord[0])
-            else:
-                ret += '113 {0} {1}\n'.format(coord[1], coord[0])
+        ret += printArea(self.concreteGeometry)
 
         return ret
 
@@ -253,16 +273,7 @@ class Apron(SpatialObject):
 
     def toString(self):
         ret = '110 {0} 0.15 360 {1}\n'.format(self.surfaceInteger, self.name)
-        if self.geometry.exterior.is_ccw:
-            coords = self.geometry.exterior.coords
-        else:
-            coords = reversed(self.geometry.exterior.coords)
-
-        for coord, isLast in lookahead(coords):
-            if not isLast:
-                ret += '111 {0} {1}\n'.format(coord[1], coord[0])
-            else:
-                ret += '113 {0} {1}\n'.format(coord[1], coord[0])
+        ret += printArea(self.geometry)
 
         # If this apron is named, also create a start location for it.
         # TODO: If an airport has no named aprons we should choose the largest one and put a start location there.  An alternative is for the aerodrome class to make sure that it has at least one named apron by naming the largest on 'Ramp' or something if none are named.
