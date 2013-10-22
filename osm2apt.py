@@ -5,6 +5,9 @@ import argparse
 from imposm.parser import OSMParser
 from shapely.geometry import *
 
+overpassQueryFile = open('overpass_query.txt', 'w')
+overpassQueryFile.write('data=\n\n[timeout:600];\n\n(\n')
+
 def lookahead(iterable):
     it = iter(iterable)
     last = it.next()
@@ -15,6 +18,14 @@ def lookahead(iterable):
 
 def metersToDeg(meters):
     return (meters / (6371000 * 2 * 3.1415927)) * 360
+
+def addOverpassQuery(type, id):
+    if type == 'node':
+        overpassQueryFile.write('  node({0});\n'.format(id))
+    elif type == 'way':
+        overpassQueryFile.write('  way({0});    >;\n'.format(id))
+    elif type == 'relation':
+        overpassQueryFile.write('  relation({0});    >;\n'.format(id))
 
 def checkNodesFormClosedWay(nodes):
     if nodes[0] != nodes[-1]:
@@ -199,7 +210,7 @@ class Runway(SpatialObject):
         self.runwayEndNodes = runwayEndNodes
         self.surface = surface
         self.surfaceInteger = surfaceStringToInt(self.surface)
-        self.width = convertToUnit(width, 'm');
+        self.width = convertToUnit(width, 'm')
         self.nodes = nodes
 
     def buildGeometry(self, coordDict):
@@ -229,7 +240,7 @@ class Taxiway(SpatialObject):
         self.name = name
         self.surface=surface
         self.surfaceInteger = surfaceStringToInt(self.surface)
-        self.width = convertToUnit(width, 'm');
+        self.width = convertToUnit(width, 'm')
         self.nodes = nodes
 
     def buildGeometry(self, coordDict):
@@ -342,6 +353,7 @@ class Osm2apt_class(object):
                         aerodromeCode = tags['faa']
                     else:
                         print 'ERROR: Aerodrome does not have an ICAO or FAA code, skipping.  Way ID: ', osmid
+                        addOverpassQuery('way', osmid)
                         continue
 
                     print 'Airport Code is: ', aerodromeCode
@@ -352,6 +364,7 @@ class Osm2apt_class(object):
                         aerodromeELE = tags['ele']
                     else:
                         print 'ERROR: Aerodrome does not have an elevation (ele), skipping. Way ID: ', osmid
+                        addOverpassQuery('way', osmid)
                         continue
 
                     print 'Airport Elevation is: ', aerodromeELE
@@ -371,6 +384,7 @@ class Osm2apt_class(object):
                         runwayEndNodes = [refs[0], refs[-1]]
                     else:
                         print 'ERROR: Runway is a closed loop, skipping.  Way ID: ', osmid
+                        addOverpassQuery('way', osmid)
                         continue
 
                     # Check to see if the runway is abandonded, if so skip it.
@@ -386,11 +400,13 @@ class Osm2apt_class(object):
                     # TODO: Right now we skip the runway if this is not set, in
                     # the future we could guess the runway name based on its orientation.
                     if 'ref' in tags:
+                        # TODO: Need to check to see what the runway separator is, most use '/' but some runways use a '-' and others are probably used as well.
                         runwayEndNames = tags['ref'].split('/')
                         print 'Runway end names are: ', runwayEndNames
                         print 'Runway end nodes are: ', runwayEndNodes
                     else:
                         print 'ERROR: Runway does not have a "ref" tag set, skipping.  Way ID: ', osmid
+                        addOverpassQuery('way', osmid)
                         continue
 
                     # Determine the runway surface type or assume 'concrete' if not specified.
@@ -521,15 +537,6 @@ class Osm2apt_class(object):
 # Main function
 print 'osm2apt version 0.2.0'
 
-'''
-print '=== Testing conversion ratios ==='
-testStrings = ['7', '7   ', '   7', '7 ft', ' 7 ft', '7     ft', '7 ft   ', '7 m', '3 blobs']
-for string in testStrings:
-    print '"%s" is %f m' % (string, convertToUnit(string, 'm'))
-print convertToUnit('7 ft', 'hello')
-print '\n\n\n'
-'''
-
 # Check and parse commandline
 argumentParser = argparse.ArgumentParser()
 argumentParser.add_argument('inputFile')
@@ -567,6 +574,8 @@ print "\t%s\tTaxiways" % len(osm2apt.taxiways)
 print "\t%s\tAprons" % len(osm2apt.aprons)
 print "\t%s\tWindsocks" % len(osm2apt.windsocks)
 
+# TODO: Add all unassociated objects in these lists to the overpass query.
+
 print '\n\n\n=== Outputing apt.dat ==='
 outputFile = open('apt.dat', 'w')
 outputFile.write('I\n');
@@ -577,6 +586,7 @@ for aerodrome in osm2apt.aerodromes:
     outputFile.write(aerodrome.toString())
 
 outputFile.write('\n\n99\n\n')
+overpassQueryFile.write(');\n\nout meta;\n')
 print 'Done.'
 print 'apt.dat written successfully.'
 
