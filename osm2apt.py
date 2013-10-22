@@ -151,7 +151,9 @@ class Aerodrome(SpatialObject):
         # Print out the main airport header line
         tempString = '1 {0} 0 0 {1} {2}\n'.format(self.ele, self.code, self.name)
 
-        # TODO: Print out the boundary area of the aerodrome.
+        # Print out the boundary area of the aerodrome.
+        tempString += '130 {0} boundary\n'.format(self.name)
+        tempString += printArea(self.geometry)
 
         # Loop over all of the taxiways and determine the unique set
         # (automatically has no duplicates since it is a python set) of nodes
