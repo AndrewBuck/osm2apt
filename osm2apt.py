@@ -235,6 +235,35 @@ class Windsock(SpatialObject):
     def toString(self):
         return '19 {0} {1} {2} WS\n'.format(self.coord[1], self.coord[0], self.lit)
 
+class Apron(SpatialObject):
+
+    def __init__(self, name, nodes, surface):
+        self.name = name
+        self.nodes = nodes
+        self.surface = surface
+        self.surfaceInteger = surfaceStringToInt(self.surface)
+
+    def buildGeometry(self, coordDict):
+        if checkNodesFormClosedWay(self.nodes):
+            # TODO: Need to make sure the coords in the resulting geometry for a counter clockwise ring.
+            self.geometry = Polygon(nodesToCoords(self.nodes, coordDict))
+        else:
+            print 'Not building geometry for apron since it is not closed.'
+
+    def toString(self):
+        ret = '110 {0} 0.15 360 {1}\n'.format(self.surfaceInteger, self.name)
+        if self.geometry.exterior.is_ccw:
+            coords = self.geometry.exterior.coords
+        else:
+            coords = reversed(self.geometry.exterior.coords)
+
+        for coord, isLast in lookahead(coords):
+            if not isLast:
+                ret += '111 {0} {1}\n'.format(coord[1], coord[0])
+            else:
+                ret += '113 {0} {1}\n'.format(coord[1], coord[0])
+
+        return ret
 class Osm2apt_class(object):
 
     aerodromes = []
@@ -245,6 +274,7 @@ class Osm2apt_class(object):
     runways = [];    objectLists.append(runways)
     taxiways = [];   objectLists.append(taxiways)
     windsocks = [];   objectLists.append(windsocks)
+    aprons = [];   objectLists.append(aprons)
 
     coords = []
     coordDict = {}
@@ -409,6 +439,15 @@ class Osm2apt_class(object):
                     # in the output file.
                     self.taxiways.append(Taxiway(name, surface, width, refs))
 
+                # way: aeroway=apron
+                if tags['aeroway'] == 'apron':
+                    print '\nFound an apron.  Tags:\n', tags
+
+                    name = coalesceValue(('name', 'ref'), tags, '')
+                    surface = coalesceValue(('surface'), tags, 'concrete')
+
+                    self.aprons.append(Apron(name, refs, surface))
+
     # Loops over all the object lists and tries to build a Shapely geometry
     # object for eact object in the list.
     def buildGeometries(self):
@@ -485,6 +524,7 @@ print '\n\n\n=== Results ==='
 print 'Successfully read in %s aerodromes\n' % len(osm2apt.aerodromes)
 print 'Successfully read in %s runways' % len(osm2apt.runways)
 print 'Successfully read in %s taxiways' % len(osm2apt.taxiways)
+print 'Successfully read in %s aprons' % len(osm2apt.aprons)
 print 'Successfully read in %s windsocks' % len(osm2apt.windsocks)
 
 print '\nRead in %s osm nodes' % len(osm2apt.coords)
@@ -501,6 +541,7 @@ there are this many remaining un-assosciated objects (all these numbers should\n
 be 0, as any un-assosciated objects will not be put in the output apt.dat file):'
 print "\t%s\tRunways" % len(osm2apt.runways)
 print "\t%s\tTaxiways" % len(osm2apt.taxiways)
+print "\t%s\tAprons" % len(osm2apt.aprons)
 print "\t%s\tWindsocks" % len(osm2apt.windsocks)
 
 print '\n\n\n=== Outputing apt.dat ==='
