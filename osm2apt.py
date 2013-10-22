@@ -160,6 +160,7 @@ class Aerodrome(SpatialObject):
                     if prevCoord == 0:
                         prevCoord = coord
                     else:
+                        # TODO: Implement oneway taxiways.
                         tempString += '1202 {0} {1} twoway taxiway {2}\n'.format(prevCoord[2], coord[2], taxiway.name)
                         prevCoord = coord
                     
@@ -262,6 +263,13 @@ class Apron(SpatialObject):
                 ret += '111 {0} {1}\n'.format(coord[1], coord[0])
             else:
                 ret += '113 {0} {1}\n'.format(coord[1], coord[0])
+
+        # If this apron is named, also create a start location for it.
+        # TODO: If an airport has no named aprons we should choose the largest one and put a start location there.  An alternative is for the aerodrome class to make sure that it has at least one named apron by naming the largest on 'Ramp' or something if none are named.
+        if len(self.name) > 0:
+            startupLoc = self.geometry.representative_point()
+            # TODO: Set the startup heading to be something reasonable, toward the nearest taxiway would be a good one.
+            ret += '15 {0} {1} 360 {2}\n'.format(startupLoc.y, startupLoc.x, self.name)
 
         return ret
 class Osm2apt_class(object):
