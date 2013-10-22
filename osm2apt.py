@@ -296,6 +296,19 @@ class Apron(SpatialObject):
             ret += '15 {0} {1} 360 {2}\n'.format(startupLoc.y, startupLoc.x, self.name)
 
         return ret
+
+class Beacon(SpatialObject):
+
+    def __init__(self, coord, color):
+        self.coord = coord
+        self.color = color
+
+    def buildGeometry(self, coordDict):
+        self.geometry = Point(self.coord)
+
+    def toString(self):
+        return '18 {0} {1} {2} BCN\n'.format(self.coord[1], self.coord[0], self.color)
+
 class Osm2apt_class(object):
 
     aerodromes = []
@@ -307,6 +320,7 @@ class Osm2apt_class(object):
     taxiways = [];   objectLists.append(taxiways)
     windsocks = [];   objectLists.append(windsocks)
     aprons = [];   objectLists.append(aprons)
+    beacons = [];   objectLists.append(beacons)
 
     coords = []
     coordDict = {}
@@ -324,6 +338,13 @@ class Osm2apt_class(object):
                 if tags['aeroway'] == 'windsock':
                     lit = coalesceValue(('lit'), tags, 'no')
                     self.windsocks.append(Windsock(coord, lit))
+
+            if 'man_made' in tags:
+                #node: man_made=beacon
+                if tags['man_made'] == 'beacon':
+                    # TODO: Need to work out the tagging (if it even exists) for the beacon color type.
+                    color = 1
+                    self.beacons.append(Beacon(coord, color))
 
     # Callback method to process ways
     def waysCallback(self, ways):
@@ -535,7 +556,7 @@ class Osm2apt_class(object):
             ls.remove(obj)
 
 # Main function
-print 'osm2apt version 0.2.0'
+print 'osm2apt version 0.2.1'
 
 # Check and parse commandline
 argumentParser = argparse.ArgumentParser()
@@ -556,6 +577,7 @@ print 'Successfully read in %s runways' % len(osm2apt.runways)
 print 'Successfully read in %s taxiways' % len(osm2apt.taxiways)
 print 'Successfully read in %s aprons' % len(osm2apt.aprons)
 print 'Successfully read in %s windsocks' % len(osm2apt.windsocks)
+print 'Successfully read in %s beacons' % len(osm2apt.beacons)
 
 print '\nRead in %s osm nodes' % len(osm2apt.coords)
 
@@ -573,6 +595,7 @@ print "\t%s\tRunways" % len(osm2apt.runways)
 print "\t%s\tTaxiways" % len(osm2apt.taxiways)
 print "\t%s\tAprons" % len(osm2apt.aprons)
 print "\t%s\tWindsocks" % len(osm2apt.windsocks)
+print "\t%s\tBeacons" % len(osm2apt.beacons)
 
 # TODO: Add all unassociated objects in these lists to the overpass query.
 
