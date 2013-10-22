@@ -309,6 +309,33 @@ class Beacon(SpatialObject):
     def toString(self):
         return '18 {0} {1} {2} BCN\n'.format(self.coord[1], self.coord[0], self.color)
 
+class ParkingPosition(SpatialObject):
+
+    def __init__(self, coord, positionTypeTag):
+        self.coord = coord
+        self.positionTypeTag = positionTypeTag
+        self.heading = 360
+        self.typeString = 'tie-down'
+        self.aircraftTypeString = 'props'
+
+        if self.positionTypeTag == 'parking_position':
+            self.typeString = 'misc'   # TODO: should be 'tie-down' but WED doesn't like this.
+            self.aircraftTypeString = 'props'
+        elif self.positionTypeTag == 'hangar':
+            self.typeString = 'hangar'
+            self.aircraftTypeString = 'all'
+        elif self.positionTypeTag == 'gate':
+            self.typeString = 'gate'
+            self.aircraftTypeString = 'jets|heavy'
+        else:
+            print 'ERROR: Parking position type "%s" unknown, may be exported incorrectly.'
+
+    def buildGeometry(self, coordDict):
+        self.geometry = Point(self.coord)
+
+    def toString(self):
+        return '1300 {0} {1} {2} {3} {4}\n'.format(self.coord[1], self.coord[0], self.heading, self.typeString, self.aircraftTypeString)
+
 class Osm2apt_class(object):
 
     aerodromes = []
@@ -321,6 +348,7 @@ class Osm2apt_class(object):
     windsocks = [];   objectLists.append(windsocks)
     aprons = [];   objectLists.append(aprons)
     beacons = [];   objectLists.append(beacons)
+    parkingPositions = [];   objectLists.append(parkingPositions)
 
     coords = []
     coordDict = {}
@@ -338,6 +366,12 @@ class Osm2apt_class(object):
                 if tags['aeroway'] == 'windsock':
                     lit = coalesceValue(('lit'), tags, 'no')
                     self.windsocks.append(Windsock(coord, lit))
+
+                #node: aeroway=parking_position
+                if tags['aeroway'] == 'parking_position' \
+                or tags['aeroway'] == 'hangar' \
+                or tags['aeroway'] == 'gate':
+                    self.parkingPositions.append(ParkingPosition(coord, tags['aeroway']))
 
             if 'man_made' in tags:
                 #node: man_made=beacon
@@ -578,6 +612,7 @@ print 'Successfully read in %s taxiways' % len(osm2apt.taxiways)
 print 'Successfully read in %s aprons' % len(osm2apt.aprons)
 print 'Successfully read in %s windsocks' % len(osm2apt.windsocks)
 print 'Successfully read in %s beacons' % len(osm2apt.beacons)
+print 'Successfully read in %s parkingPositions' % len(osm2apt.parkingPositions)
 
 print '\nRead in %s osm nodes' % len(osm2apt.coords)
 
@@ -596,6 +631,7 @@ print "\t%s\tTaxiways" % len(osm2apt.taxiways)
 print "\t%s\tAprons" % len(osm2apt.aprons)
 print "\t%s\tWindsocks" % len(osm2apt.windsocks)
 print "\t%s\tBeacons" % len(osm2apt.beacons)
+print "\t%s\tParking positions" % len(osm2apt.parkingPositions)
 
 # TODO: Add all unassociated objects in these lists to the overpass query.
 
