@@ -399,13 +399,13 @@ class Osm2apt_class(object):
                     # up with the end names.
                     # TODO: Right now we skip the runway if this is not set, in
                     # the future we could guess the runway name based on its orientation.
-                    if 'ref' in tags:
+                    name = coalesceValue(('ref', 'name'), tags, 'unnamed')
+                    if name != 'unnamed':
                         # TODO: Need to check to see what the runway separator is, most use '/' but some runways use a '-' and others are probably used as well.
-                        runwayEndNames = tags['ref'].split('/')
+                        runwayEndNames = name.split('/')
                         print 'Runway end names are: ', runwayEndNames
-                        print 'Runway end nodes are: ', runwayEndNodes
                     else:
-                        print 'ERROR: Runway does not have a "ref" tag set, skipping.  Way ID: ', osmid
+                        print 'ERROR: Runway does not have a "ref" or "name" tag set, skipping.  Way ID: ', osmid
                         addOverpassQuery('way', osmid)
                         continue
 
