@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-import sys
+import argparse
 
 from imposm.parser import OSMParser
 from shapely.geometry import *
@@ -509,10 +509,10 @@ class Osm2apt_class(object):
                         shortestDistance = tempDistance
                         nearestAerodrome = a
 
-                # If the nearest aerodrome is within 0.05 degrees (about 5 km)
+                # If the nearest aerodrome is within 0.05 degrees (about 2 km)
                 # then assign the object to that aerodrome and remove it from
                 # the general list.
-                if shortestDistance < 0.05:
+                if shortestDistance < 0.02:
                     objectsToRemove.append((ls, obj))
                     nearestAerodrome.assosciatedObjects.append(obj)
 
@@ -532,13 +532,16 @@ print '\n\n\n'
 '''
 
 # Check and parse commandline
-#TODO: Imlement this.
+argumentParser = argparse.ArgumentParser()
+argumentParser.add_argument('inputFile')
+args = argumentParser.parse_args()
+inputFileName = args.inputFile
 
 print '=== Parsing OSM File ==='
 osm2apt = Osm2apt_class()
 
 parser = OSMParser(coords_callback=osm2apt.coordsCallback, nodes_callback=osm2apt.nodesCallback, ways_callback=osm2apt.waysCallback)
-parser.parse('Airports.osm')
+parser.parse(inputFileName)
 
 print '\n\n\n=== Results ==='
 
