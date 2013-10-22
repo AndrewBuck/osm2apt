@@ -311,7 +311,6 @@ class Osm2apt_class(object):
             if 'aeroway' in tags:
                 #node: aeroway=windsock
                 if tags['aeroway'] == 'windsock':
-                    print 'Windsock'
                     lit = coalesceValue(('lit'), tags, 'no')
                     self.windsocks.append(Windsock(coord, lit))
 
@@ -520,7 +519,7 @@ class Osm2apt_class(object):
             ls.remove(obj)
 
 # Main function
-print 'osm2apt version 0.1.0'
+print 'osm2apt version 0.2.0'
 
 '''
 print '=== Testing conversion ratios ==='
