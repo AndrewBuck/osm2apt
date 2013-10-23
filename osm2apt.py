@@ -537,11 +537,8 @@ class Osm2apt_class(object):
                     # Get the ICAO code first, if that does not exist fall back
                     # on the FAA code, if neither exist we cannot import the
                     # airport so just skip it.
-                    if 'icao' in tags:
-                        aerodromeCode = tags['icao']
-                    elif 'faa' in tags:
-                        aerodromeCode = tags['faa']
-                    else:
+                    aerodromeCode = coalesceValue(('icao', 'faa', 'ref'), tags, '')
+                    if aerodromeCode == '':
                         print 'ERROR: Aerodrome does not have an ICAO or FAA code, skipping.  Way ID: ', osmid
                         addOverpassQuery('way', osmid)
                         continue
