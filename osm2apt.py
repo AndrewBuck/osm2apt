@@ -20,7 +20,9 @@ def lookahead(iterable):
 def metersToDeg(meters):
     return (meters / (6371000 * 2 * 3.1415927)) * 360
 
-def bearing(lat1, lon1, lat2, lon2):
+def heading(coord1, coord2):
+    lat1 = coord1[1];  lon1 = coord1[0];
+    lat2 = coord2[1];  lon2 = coord2[0];
     lat1 *= math.pi / 180.0
     lon1 *= math.pi / 180.0
     lat2 *= math.pi / 180.0
@@ -29,22 +31,40 @@ def bearing(lat1, lon1, lat2, lon2):
     y = math.sin(dLon) * math.cos(lat2)
     x = math.cos(lat1)*math.sin(lat2) - \
         math.sin(lat1)*math.cos(lat2)*math.cos(dLon)
-    brng = math.atan2(y, x) * 180.0 / math.pi
+    hdg = math.atan2(y, x) * 180.0 / math.pi
 
-    if (brng < 0):
-        brng+= 360.0
+    if (hdg < 0):
+        hdg+= 360.0
 
-    return brng
+    return hdg
 
-def bearingToRunwayInt(bearing):
-    num = round(bearing / 10.0)
+def headingToRunwayInt(heading):
+    num = round(heading/ 10.0)
     if num == 0:
         num = 36
 
     return int(num)
 
-def bearingToRunwayString(bearing):
-    return '{0:02d}'.format(bearingToRunwayInt(bearing))
+def headingToRunwayString(heading):
+    return '{0:02d}'.format(headingToRunwayInt(heading))
+
+def computeTurnTo(pos1, origHeading, pos2):
+    newHeading = heading(pos1, pos2)
+    diff = math.fabs(origHeading - newHeading)
+    if diff <= 180:
+        amount = diff
+        if newHeading >= origHeading:
+            direction = 'right'
+        else:
+            direction = 'left'
+    else:
+        amount = 360 - diff
+        if origHeading >= newHeading:
+            direction = 'right'
+        else:
+            direction = 'left'
+
+    return (amount, direction)
 
 def addOverpassQuery(type, id):
     if type == 'node':
@@ -170,6 +190,11 @@ class SpatialObject(object):
     def buildGeometry(self, coordDict):
         return
 
+class AerodromeObject(SpatialObject):
+
+    def __init__(self):
+        self.parentAerodrome = null
+
 class Aerodrome(SpatialObject):
 
     def __init__(self, name, code, ele, nodes):
@@ -185,6 +210,14 @@ class Aerodrome(SpatialObject):
         else:
             print 'Not building geometry for aerodrome since it is not closed.'
 
+    def listObjectsByType(self, objType):
+        ls = []
+        for obj in self.assosciatedObjects:
+            if isinstance(obj, objType):
+                ls.append(obj)
+
+        return ls
+
     def toString(self):
         # Print out the main airport header line
         tempString = '1 {0} 0 0 {1} {2}\n'.format(self.ele, self.code, self.name)
@@ -193,18 +226,14 @@ class Aerodrome(SpatialObject):
         tempString += '130 {0} boundary\n'.format(self.name)
         tempString += printArea(self.geometry)
 
-        # Print out all of the assosciated objects for this airport to apt.dat
-        # and also compile a temporary list of the taxiways to use in building
-        # the taxiway network.
-        # TODO: This should also include nodes for the runways when the on-runway taxiways are added.
-        taxiways = []
+        # Print out all of the assosciated objects for this airport to apt.dat.
         taxiwayCoords = {}
         for obj in self.assosciatedObjects:
             tempString += obj.toString()
-            if isinstance(obj, Taxiway):
-                taxiways.append(obj)
 
         # If the airport has associated taxiways, also print out a taxiway network.
+        # TODO: This should also include nodes for the runways when the on-runway taxiways are added.
+        taxiways = self.listObjectsByType(Taxiway)
         if len(taxiways) > 0:
             # Start by building a set of the nodes used for taxiways at this specific airport.
             for taxiway in taxiways:
@@ -232,7 +261,7 @@ class Aerodrome(SpatialObject):
                     
         return tempString
 
-class Runway(SpatialObject):
+class Runway(AerodromeObject):
 
     def __init__(self, runwayEndNames, runwayEndNodes, surface, width, nodes):
         self.runwayEndNames = runwayEndNames
@@ -244,6 +273,10 @@ class Runway(SpatialObject):
 
     def buildGeometry(self, coordDict):
         self.geometry = LineString(nodesToCoords(self.nodes, coordDict))
+        firstEnd = headingToRunwayInt(heading(self.geometry.coords[0], self.geometry.coords[-1]))
+        if firstEnd > 18:
+            self.geometry.coords = list(self.geometry.coords)[::-1]
+
         # Check to see if the first end of the runway is drawn with the lower
         # numbered end first or if it needs to be reversed so that the
         # direction of the line lines up with the name.  Note that this assumes
@@ -263,7 +296,7 @@ class Runway(SpatialObject):
     def toString(self):
         return '100 {0} {1} 0 0.15 0 0 1 {2} {3} {4} 0 0 1 0 0 0 {5} {6} {7} 0 0 1 0 0 0\n'.format(self.width, self.surfaceInteger, self.runwayEndNames[0], self.geometry.coords[0][1], self.geometry.coords[0][0], self.runwayEndNames[1], self.geometry.coords[-1][1], self.geometry.coords[-1][0])
 
-class Taxiway(SpatialObject):
+class Taxiway(AerodromeObject):
 
     def __init__(self, name, surface, width, nodes):
         self.name = name
@@ -283,7 +316,7 @@ class Taxiway(SpatialObject):
 
         return ret
 
-class Windsock(SpatialObject):
+class Windsock(AerodromeObject):
 
     def __init__(self, coord, lit):
         self.coord = coord
@@ -298,7 +331,7 @@ class Windsock(SpatialObject):
     def toString(self):
         return '19 {0} {1} {2} WS\n'.format(self.coord[1], self.coord[0], self.lit)
 
-class Apron(SpatialObject):
+class Apron(AerodromeObject):
 
     def __init__(self, name, nodes, surface):
         self.name = name
@@ -326,7 +359,7 @@ class Apron(SpatialObject):
 
         return ret
 
-class Beacon(SpatialObject):
+class Beacon(AerodromeObject):
 
     def __init__(self, coord, color):
         self.coord = coord
@@ -338,7 +371,7 @@ class Beacon(SpatialObject):
     def toString(self):
         return '18 {0} {1} {2} BCN\n'.format(self.coord[1], self.coord[0], self.color)
 
-class LightedObject(SpatialObject):
+class LightedObject(AerodromeObject):
 
     def __init__(self, coord, typeName):
         self.coord = coord
@@ -352,11 +385,55 @@ class LightedObject(SpatialObject):
         self.geometry = Point(self.coord)
 
     def toString(self):
+        # Determine the nearest runway to this object.
+        tempDistance = -1
+        shortestDistance = -1
+        nearestRunway = -1
+        for runway in self.parentAerodrome.listObjectsByType(Runway):
+            # TODO: Refactor this and other occurrences into a function.
+            tempDistance = self.geometry.distance(runway.geometry)
+            if shortestDistance == -1:
+                shortestDistance = tempDistance
+                nearestRunway = runway
+            else:
+                if tempDistance < shortestDistance:
+                    shortestDistance = tempDistance
+                    nearestRunway = runway
+
+        turn = -1
+        if nearestRunway != -1:
+            # Find out what distance along the runway this object is at.
+            distance = nearestRunway.geometry.project(self.geometry)
+            runwayFraction = distance / nearestRunway.geometry.length
+            runwayLoc = nearestRunway.geometry.interpolate(distance)
+            # Determine the true heading of the runway and also work out which
+            # end of the runway the light is on.
+            if runwayFraction < 0.5:
+                self.heading = heading(nearestRunway.geometry.coords[0], nearestRunway.geometry.coords[-1])
+                self.runway = nearestRunway.runwayEndNames[0]
+            else:
+                self.heading = heading(nearestRunway.geometry.coords[-1], nearestRunway.geometry.coords[0])
+                self.runway = nearestRunway.runwayEndNames[1]
+
+            self.heading = int(round(self.heading))
+            if self.heading == 0:
+                self.heading = 360
+
+            # If we are moving down the runway and are at the location with the
+            # light directly beside us, compute which way (left or right) we
+            # would need to turn to face the light, i.e. determine which side
+            # of the runway it is on.
+            turn = computeTurnTo(runwayLoc.coords[:][0], self.heading, self.geometry.coords[:][0])
+
+        # Determine the appropriate code to use for X-plane to indicate the type of the light.
         if self.typeName == 'vasi':
             self.typeCode = 1
         elif self.typeName == 'papi':
-            # TODO: Fix this, it should be 2 for a papi left of the runway and 3 for a papi on the right.
-            self.typeCode = 2
+            if turn != -1 and turn[1] == 'left':
+                self.typeCode = 2
+            else:
+                self.typeCode = 3
+
         else:
             print 'ERROR: Lighted object of type "%s" is unknown, skipping output of this object.' % self.typeName
 
@@ -597,18 +674,20 @@ class Osm2apt_class(object):
             for obj in ls:
                 shortestDistance = self.aerodromes[0].geometry.distance(obj.geometry)
                 nearestAerodrome = self.aerodromes[0]
+                # TODO: Refactor this and other occurrences into a function.
                 for a in self.aerodromes:
                     tempDistance = a.geometry.distance(obj.geometry)
                     if tempDistance <= shortestDistance:
                         shortestDistance = tempDistance
                         nearestAerodrome = a
 
-                # If the nearest aerodrome is within 0.05 degrees (about 2 km)
+                # If the nearest aerodrome is within 0.02 degrees (about 2 km)
                 # then assign the object to that aerodrome and remove it from
                 # the general list.
                 if shortestDistance < 0.02:
                     objectsToRemove.append((ls, obj))
                     nearestAerodrome.assosciatedObjects.append(obj)
+                    obj.parentAerodrome = nearestAerodrome
 
         for ls, obj in objectsToRemove:
             ls.remove(obj)
