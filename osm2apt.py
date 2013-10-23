@@ -727,7 +727,7 @@ class Osm2apt_class(object):
             ls.remove(obj)
 
 # Main function
-print 'osm2apt version 0.2.1'
+print 'osm2apt version 0.3.0'
 
 # Check and parse commandline
 argumentParser = argparse.ArgumentParser()
