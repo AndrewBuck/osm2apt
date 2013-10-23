@@ -319,7 +319,7 @@ class ParkingPosition(SpatialObject):
         self.aircraftTypeString = 'props'
 
         if self.positionTypeTag == 'parking_position':
-            self.typeString = 'misc'   # TODO: should be 'tie-down' but WED doesn't like this.
+            self.typeString = 'tie_down'
             self.aircraftTypeString = 'props'
         elif self.positionTypeTag == 'hangar':
             self.typeString = 'hangar'
