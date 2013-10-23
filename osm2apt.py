@@ -111,6 +111,17 @@ def nodesToCoords(nodes, coordDict):
 
     return coords
 
+def printLine(line, lineType, lineName):
+    ret = '120 {0}\n'.format(lineName)
+
+    for coord, isLast in lookahead(line.coords):
+        if not isLast:
+            ret += '111 {0} {1} {2}\n'.format(coord[1], coord[0], lineType)
+        else:
+            ret += '115 {0} {1}\n'.format(coord[1], coord[0])
+
+    return ret
+
 def printArea(area):
     ret = ''
     if area.exterior.is_ccw:
@@ -377,6 +388,8 @@ class Taxiway(AerodromeObject):
             ret += '111 {0} {1} 4\n'.format(lineStart[1], lineStart[0])
             ret += '115 {0} {1}\n'.format(lineEnd[1], lineEnd[0])
 
+        # Print out taxiway centerlines on top of the concrete.
+        ret += printLine(self.geometry, 1, 'taxiway {0} centerline'.format(self.name))
         return ret
 
 class Windsock(AerodromeObject):
