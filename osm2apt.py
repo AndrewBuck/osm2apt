@@ -20,7 +20,7 @@ def lookahead(iterable):
 def metersToDeg(meters):
     return (meters / (6371000 * 2 * 3.1415927)) * 360
 
-def heading(coord1, coord2):
+def computeHeading(coord1, coord2):
     lat1 = coord1[1];  lon1 = coord1[0];
     lat2 = coord2[1];  lon2 = coord2[0];
     lat1 *= math.pi / 180.0
@@ -48,8 +48,21 @@ def headingToRunwayInt(heading):
 def headingToRunwayString(heading):
     return '{0:02d}'.format(headingToRunwayInt(heading))
 
+def normalizeHeading(heading):
+    while heading < 0:
+        heading += 360
+
+    while heading > 360:
+        heading -= 360
+
+    return heading
+
+def headingToDeg(heading):
+    return (450 - heading) % 360.0
+
 def computeTurnTo(pos1, origHeading, pos2):
-    newHeading = heading(pos1, pos2)
+    newHeading = computeHeading(pos1, pos2)
+    normalizeHeading(origHeading)
     diff = math.fabs(origHeading - newHeading)
     if diff <= 180:
         amount = diff
@@ -65,6 +78,16 @@ def computeTurnTo(pos1, origHeading, pos2):
             direction = 'left'
 
     return (amount, direction)
+
+def travel(startPos, heading, distance):
+    heading = normalizeHeading(heading)
+    x = startPos[0]
+    y = startPos[1]
+    angle = headingToDeg(heading) * math.pi / 180.0
+    x += distance * math.cos(angle)
+    y += distance * math.sin(angle)
+
+    return (x, y)
 
 def addOverpassQuery(type, id):
     if type == 'node':
@@ -187,7 +210,7 @@ class SpatialObject(object):
     def __init__(self):
         self.geometry = null
 
-    def buildGeometry(self, coordDict):
+    def buildGeometry(self, coordDict, nodeDict):
         return
 
 class AerodromeObject(SpatialObject):
@@ -204,7 +227,7 @@ class Aerodrome(SpatialObject):
         self.nodes = nodes
         self.assosciatedObjects = []
 
-    def buildGeometry(self, coordDict):
+    def buildGeometry(self, coordDict, nodeDict):
         if checkNodesFormClosedWay(self.nodes):
             self.geometry = Polygon(nodesToCoords(self.nodes, coordDict))
         else:
@@ -271,9 +294,9 @@ class Runway(AerodromeObject):
         self.width = convertToUnit(width, 'm')
         self.nodes = nodes
 
-    def buildGeometry(self, coordDict):
+    def buildGeometry(self, coordDict, nodeDict):
         self.geometry = LineString(nodesToCoords(self.nodes, coordDict))
-        firstEnd = headingToRunwayInt(heading(self.geometry.coords[0], self.geometry.coords[-1]))
+        firstEnd = headingToRunwayInt(computeHeading(self.geometry.coords[0], self.geometry.coords[-1]))
         if firstEnd > 18:
             self.geometry.coords = list(self.geometry.coords)[::-1]
 
@@ -304,15 +327,55 @@ class Taxiway(AerodromeObject):
         self.surfaceInteger = surfaceStringToInt(self.surface)
         self.width = convertToUnit(width, 'm')
         self.nodes = nodes
+        self.holdingPositions = []
 
-    def buildGeometry(self, coordDict):
+    def buildGeometry(self, coordDict, nodeDict):
         self.taxiwayCoords = nodesToCoords(self.nodes, coordDict)
         self.geometry = LineString(self.taxiwayCoords)
         self.concreteGeometry = self.geometry.buffer(metersToDeg(self.width), 2)
 
+        # Loop over all the nodes that make up the taxiway and make a list of
+        # any that are holding positions.
+        # TODO: Currently only checks normal holds, should check for ILS holds as well.
+        for node in self.nodes:
+            if node in nodeDict:
+                nodeProps = nodeDict[node]
+                if 'aeroway' in nodeProps[0]:
+                    if nodeProps[0]['aeroway'] == 'holding_position':
+                        self.holdingPositions.append((node, nodeProps[0], nodeProps[1]))
+
     def toString(self):
+        # Print out the concrete area which forms the physical surface of the taxiway.
         ret = '110 {0} 0.15 360 {1}\n'.format(self.surfaceInteger, self.name)
         ret += printArea(self.concreteGeometry)
+
+        # Print out holding position lines on top of the concrete (these lines
+        # are purely visual, X-plane does not respect these in taxi routing)
+        for node, tags, coord in self.holdingPositions:
+            # Determine which node along the taxiway the holding position occurs on.
+            index = self.nodes.index(node)
+
+            # If the node is any but the last one, we use the direction of the
+            # _following_ segment of the taxiway to get the direction, however
+            # if the node is the last in the taxiway, then there is no
+            # following segement so we use the previous segment instead.
+            if index < (len(self.nodes) - 1):
+                p1 = self.taxiwayCoords[index]
+                p2 = self.taxiwayCoords[index+1]
+                pos = p1
+            else:
+                p1 = self.taxiwayCoords[index-1]
+                p2 = self.taxiwayCoords[index]
+                pos = p2
+
+            # TODO: The dashed yellow lones should be on the left side of this line, which should be closer to the runway.  Currently they are drawn arbitrarily on one side, might need to reverse start and end if they are on the wrong side for a particular runway.
+            hdg = computeHeading(p1, p2)
+            lineStart = travel(p1, hdg-90, metersToDeg(self.width))
+            lineEnd = travel(p1, hdg+90, metersToDeg(self.width))
+
+            ret += '120 hold line {0}\n'.format(self.name)
+            ret += '111 {0} {1} 4\n'.format(lineStart[1], lineStart[0])
+            ret += '115 {0} {1}\n'.format(lineEnd[1], lineEnd[0])
 
         return ret
 
@@ -325,7 +388,7 @@ class Windsock(AerodromeObject):
         else:
             self.lit = 0
 
-    def buildGeometry(self, coordDict):
+    def buildGeometry(self, coordDict, nodeDict):
         self.geometry = Point(self.coord)
 
     def toString(self):
@@ -339,7 +402,7 @@ class Apron(AerodromeObject):
         self.surface = surface
         self.surfaceInteger = surfaceStringToInt(self.surface)
 
-    def buildGeometry(self, coordDict):
+    def buildGeometry(self, coordDict, nodeDict):
         if checkNodesFormClosedWay(self.nodes):
             # TODO: Need to make sure the coords in the resulting geometry for a counter clockwise ring.
             self.geometry = Polygon(nodesToCoords(self.nodes, coordDict))
@@ -365,7 +428,7 @@ class Beacon(AerodromeObject):
         self.coord = coord
         self.color = color
 
-    def buildGeometry(self, coordDict):
+    def buildGeometry(self, coordDict, nodeDict):
         self.geometry = Point(self.coord)
 
     def toString(self):
@@ -392,7 +455,7 @@ class ParkingPosition(SpatialObject):
         else:
             print 'ERROR: Parking position type "%s" unknown, may be exported incorrectly.'
 
-    def buildGeometry(self, coordDict):
+    def buildGeometry(self, coordDict, nodeDict):
         self.geometry = Point(self.coord)
 
     def toString(self):
@@ -408,7 +471,7 @@ class LightedObject(AerodromeObject):
         self.glideslope = 3.0
         self.runway = '01'
 
-    def buildGeometry(self, coordDict):
+    def buildGeometry(self, coordDict, nodeDict):
         self.geometry = Point(self.coord)
 
     def toString(self):
@@ -436,10 +499,10 @@ class LightedObject(AerodromeObject):
             # Determine the true heading of the runway and also work out which
             # end of the runway the light is on.
             if runwayFraction < 0.5:
-                self.heading = heading(nearestRunway.geometry.coords[0], nearestRunway.geometry.coords[-1])
+                self.heading = computeHeading(nearestRunway.geometry.coords[0], nearestRunway.geometry.coords[-1])
                 self.runway = nearestRunway.runwayEndNames[0]
             else:
-                self.heading = heading(nearestRunway.geometry.coords[-1], nearestRunway.geometry.coords[0])
+                self.heading = computeHeading(nearestRunway.geometry.coords[-1], nearestRunway.geometry.coords[0])
                 self.runway = nearestRunway.runwayEndNames[1]
 
             self.heading = int(round(self.heading))
@@ -483,6 +546,8 @@ class Osm2apt_class(object):
 
     coords = []
     coordDict = {}
+    nodes = []
+    nodeDict = {}
 
     # Callback method to simply read in all node ID's and coordinates
     def coordsCallback(self, coords):
@@ -492,6 +557,8 @@ class Osm2apt_class(object):
     # Callback method to read all nodes which have tags on them
     def nodesCallback(self, nodes):
         for osmid, tags, coord in nodes:
+            self.nodes.append((osmid, tags, coord))
+
             if 'aeroway' in tags:
                 #node: aeroway=windsock
                 if tags['aeroway'] == 'windsock':
@@ -677,14 +744,17 @@ class Osm2apt_class(object):
         for id, lon, lat in self.coords:
             self.coordDict[id] = (lon, lat)
 
+        for id, tags, coord in self.nodes:
+            self.nodeDict[id] = (tags, coord)
+
         # Loop over each list of objects stored in the Osm2apt class.
         listOfLists = self.objectLists
         for ls in listOfLists:
             for i in ls:
-                i.buildGeometry(self.coordDict)
+                i.buildGeometry(self.coordDict, self.nodeDict)
 
         for i in self.aerodromes:
-            i.buildGeometry(self.coordDict)
+            i.buildGeometry(self.coordDict, self.nodeDict)
 
     # Loops over all the objects in each object list (except for the aerodromes
     # list) and tries to place the given object with the closest areodrome it
