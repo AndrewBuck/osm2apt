@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 import argparse
+import math
 
 from imposm.parser import OSMParser
 from shapely.geometry import *
@@ -18,6 +19,32 @@ def lookahead(iterable):
 
 def metersToDeg(meters):
     return (meters / (6371000 * 2 * 3.1415927)) * 360
+
+def bearing(lat1, lon1, lat2, lon2):
+    lat1 *= math.pi / 180.0
+    lon1 *= math.pi / 180.0
+    lat2 *= math.pi / 180.0
+    lon2 *= math.pi / 180.0
+    dLon = lon2 - lon1;
+    y = math.sin(dLon) * math.cos(lat2)
+    x = math.cos(lat1)*math.sin(lat2) - \
+        math.sin(lat1)*math.cos(lat2)*math.cos(dLon)
+    brng = math.atan2(y, x) * 180.0 / math.pi
+
+    if (brng < 0):
+        brng+= 360.0
+
+    return brng
+
+def bearingToRunwayInt(bearing):
+    num = round(bearing / 10.0)
+    if num == 0:
+        num = 36
+
+    return int(num)
+
+def bearingToRunwayString(bearing):
+    return '{0:02d}'.format(bearingToRunwayInt(bearing))
 
 def addOverpassQuery(type, id):
     if type == 'node':
@@ -166,13 +193,12 @@ class Aerodrome(SpatialObject):
         tempString += '130 {0} boundary\n'.format(self.name)
         tempString += printArea(self.geometry)
 
-        # Loop over all of the taxiways and determine the unique set
-        # (automatically has no duplicates since it is a python set) of nodes
-        # used for the geometry of the taxiway network.
+        # Print out all of the assosciated objects for this airport to apt.dat
+        # and also compile a temporary list of the taxiways to use in building
+        # the taxiway network.
         # TODO: This should also include nodes for the runways when the on-runway taxiways are added.
-        # TODO: If instead of just being a set this were a dictionary mapping nodes onto lists of ways this set could serve the same purpose but also be used to explor the topology of the taxiway network to find things like holding points, etc.
         taxiways = []
-        taxiwayCoords = set()
+        taxiwayCoords = {}
         for obj in self.assosciatedObjects:
             tempString += obj.toString()
             if isinstance(obj, Taxiway):
@@ -183,7 +209,10 @@ class Aerodrome(SpatialObject):
             # Start by building a set of the nodes used for taxiways at this specific airport.
             for taxiway in taxiways:
                 for coord in taxiway.taxiwayCoords:
-                    taxiwayCoords.add(coord)
+                    if coord in taxiwayCoords:
+                        taxiwayCoords[coord].append(taxiway)
+                    else:
+                        taxiwayCoords[coord] = [taxiway]
 
             # Now print out the lines for all of the taxiway nodes for this airport.
             tempString += '1200\n'
