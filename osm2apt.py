@@ -197,7 +197,6 @@ class Aerodrome(SpatialObject):
         # and also compile a temporary list of the taxiways to use in building
         # the taxiway network.
         # TODO: This should also include nodes for the runways when the on-runway taxiways are added.
-        # TODO: If instead of just being a set this were a dictionary mapping nodes onto lists of ways this set could serve the same purpose but also be used to explor the topology of the taxiway network to find things like holding points, etc.
         taxiways = []
         taxiwayCoords = {}
         for obj in self.assosciatedObjects:
