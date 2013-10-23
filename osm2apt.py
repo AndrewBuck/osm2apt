@@ -193,13 +193,13 @@ class Aerodrome(SpatialObject):
         tempString += '130 {0} boundary\n'.format(self.name)
         tempString += printArea(self.geometry)
 
-        # Loop over all of the taxiways and determine the unique set
-        # (automatically has no duplicates since it is a python set) of nodes
-        # used for the geometry of the taxiway network.
+        # Print out all of the assosciated objects for this airport to apt.dat
+        # and also compile a temporary list of the taxiways to use in building
+        # the taxiway network.
         # TODO: This should also include nodes for the runways when the on-runway taxiways are added.
         # TODO: If instead of just being a set this were a dictionary mapping nodes onto lists of ways this set could serve the same purpose but also be used to explor the topology of the taxiway network to find things like holding points, etc.
         taxiways = []
-        taxiwayCoords = set()
+        taxiwayCoords = {}
         for obj in self.assosciatedObjects:
             tempString += obj.toString()
             if isinstance(obj, Taxiway):
@@ -210,7 +210,10 @@ class Aerodrome(SpatialObject):
             # Start by building a set of the nodes used for taxiways at this specific airport.
             for taxiway in taxiways:
                 for coord in taxiway.taxiwayCoords:
-                    taxiwayCoords.add(coord)
+                    if coord in taxiwayCoords:
+                        taxiwayCoords[coord].append(taxiway)
+                    else:
+                        taxiwayCoords[coord] = [taxiway]
 
             # Now print out the lines for all of the taxiway nodes for this airport.
             tempString += '1200\n'
