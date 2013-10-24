@@ -137,16 +137,21 @@ def nodesToCoords(nodes, coordDict):
     return coords
 
 def printLine(line, lineType, lineName):
+    ret = ''
+
+    if isinstance(line, MultiLineString):
+        for c in line.geoms:
+            ret += printLine(c, lineType, lineName)
+
+        return ret
+
+    ret += printLineSegment(line, lineType, lineName)
+    return ret
+
+def printLineSegment(line, lineType, lineName):
     ret = '120 {0}\n'.format(lineName)
 
-    coords = []
-    if isinstance(line, LineString):
-        coords = line.coords
-    elif isinstance(line, MultiLineString):
-        for c in line.geoms:
-            coords.append(c.coords)
-
-    for coord, isLast in lookahead(coords):
+    for coord, isLast in lookahead(line.coords):
         if not isLast:
             ret += '111 {0} {1} {2}\n'.format(coord[1], coord[0], lineType)
         else:
