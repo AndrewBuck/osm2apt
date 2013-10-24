@@ -1,5 +1,8 @@
 #!/usr/bin/env python
 
+# Global variables that are user settable.
+shoulderWidth = 0.5
+
 import argparse
 import math
 
@@ -114,7 +117,14 @@ def nodesToCoords(nodes, coordDict):
 def printLine(line, lineType, lineName):
     ret = '120 {0}\n'.format(lineName)
 
-    for coord, isLast in lookahead(line.coords):
+    coords = []
+    if isinstance(line, LineString):
+        coords = line.coords
+    elif isinstance(line, MultiLineString):
+        for c in line.geoms:
+            coords.append(c.coords)
+
+    for coord, isLast in lookahead(coords):
         if not isLast:
             ret += '111 {0} {1} {2}\n'.format(coord[1], coord[0], lineType)
         else:
@@ -343,6 +353,8 @@ class Taxiway(AerodromeObject):
     def buildGeometry(self, coordDict, nodeDict):
         self.taxiwayCoords = nodesToCoords(self.nodes, coordDict)
         self.geometry = LineString(self.taxiwayCoords)
+        self.leftEdgeLine = self.geometry.parallel_offset(metersToDeg(self.width / 2.0 - shoulderWidth), 'left', 2)
+        self.rightEdgeLine = self.geometry.parallel_offset(metersToDeg(self.width / 2.0 - shoulderWidth), 'right', 2)
         self.concreteGeometry = self.geometry.buffer(metersToDeg(self.width)/2.0, 2)
 
         # Loop over all the nodes that make up the taxiway and make a list of
@@ -381,14 +393,15 @@ class Taxiway(AerodromeObject):
 
             # TODO: The dashed yellow lones should be on the left side of this line, which should be closer to the runway.  Currently they are drawn arbitrarily on one side, might need to reverse start and end if they are on the wrong side for a particular runway.
             hdg = computeHeading(p1, p2)
-            shoulderWidth = 0.5
             lineStart = travel(p1, hdg-90, metersToDeg(self.width/2.0 - shoulderWidth))
             lineEnd = travel(p1, hdg+90, metersToDeg(self.width/2.0 - shoulderWidth))
 
             ret += printLine(LineString((lineStart, lineEnd)), 4, 'hold line {0}\n'.format(self.name))
 
-        # Print out taxiway centerlines on top of the concrete.
+        # Print out taxiway centerlines and shoulder lines on top of the concrete.
         ret += printLine(self.geometry, 1, 'taxiway {0} centerline'.format(self.name))
+        ret += printLine(self.leftEdgeLine, 3, 'taxiway {0} left line'.format(self.name))
+        ret += printLine(self.rightEdgeLine, 3, 'taxiway {0} right line'.format(self.name))
         return ret
 
 class Windsock(AerodromeObject):
