@@ -139,13 +139,15 @@ def nodesToCoords(nodes, coordDict):
 def printLine(line, lineType, lineName):
     ret = ''
 
-    if isinstance(line, MultiLineString):
+    if isinstance(line, MultiLineString) or isinstance(line, GeometryCollection):
         for c in line.geoms:
             ret += printLine(c, lineType, lineName)
 
         return ret
 
-    ret += printLineSegment(line, lineType, lineName)
+    if isinstance(line, LineString):
+        ret += printLineSegment(line, lineType, lineName)
+
     return ret
 
 def printLineSegment(line, lineType, lineName):
