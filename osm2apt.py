@@ -324,6 +324,10 @@ class Aerodrome(SpatialObject):
                 taxiway.leftEdgeLine = taxiway.leftEdgeLine.difference(apron.geometry)
                 taxiway.rightEdgeLine = taxiway.rightEdgeLine.difference(apron.geometry)
 
+            for runway in self.listObjectsByType(Runway):
+                taxiway.leftEdgeLine = taxiway.leftEdgeLine.difference(runway.geometryPolygon)
+                taxiway.rightEdgeLine = taxiway.rightEdgeLine.difference(runway.geometryPolygon)
+
     def toString(self):
         # Print out the main airport header line
         tempString = '1 {0} 0 0 {1} {2}\n'.format(self.ele, self.code, self.name)
@@ -394,6 +398,10 @@ class Runway(AerodromeObject):
         firstEnd = headingToRunwayInt(computeHeading(self.geometry.coords[0], self.geometry.coords[-1]))
         if firstEnd > 18:
             self.geometry.coords = list(self.geometry.coords)[::-1]
+            self.runwayEndNodes = list(self.runwayEndNodes)[::-1]
+
+        self.heading = computeHeading(self.geometry.coords[0], self.geometry.coords[-1])
+        self.geometryPolygon = self.geometry.buffer(metersToDeg(self.width/2.0), 1)
 
         # Check to see if the first end of the runway is drawn with the lower
         # numbered end first or if it needs to be reversed so that the
@@ -911,7 +919,7 @@ class Osm2apt_class(object):
             a.cleanGeometries()
 
 # Main function
-print 'osm2apt version 0.3.0'
+print 'osm2apt version 0.4.0'
 
 # Check and parse commandline
 argumentParser = argparse.ArgumentParser()
