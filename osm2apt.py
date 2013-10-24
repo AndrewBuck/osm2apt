@@ -276,38 +276,49 @@ class Aerodrome(SpatialObject):
             tempString += obj.toString()
 
         # If the airport has associated taxiways, also print out a taxiway network.
-        # TODO: This should also include nodes for the runways when the on-runway taxiways are added.
         taxiways = self.listObjectsByType(Taxiway)
-        if len(taxiways) > 0:
+        runways = self.listObjectsByType(Runway)
+        taxiwaysAndRunways = taxiways[:] + runways[:]
+        if len(taxiwaysAndRunways) > 0:
             # Start by building a set of the nodes used for taxiways at this specific airport.
-            for taxiway in taxiways:
-                for coord in taxiway.taxiwayCoords:
+            for taxiway in taxiwaysAndRunways:
+                for coord in taxiway.coords:
                     if coord in taxiwayCoords:
                         taxiwayCoords[coord].append(taxiway)
                     else:
                         taxiwayCoords[coord] = [taxiway]
 
-            # Now print out the lines for all of the taxiway nodes for this airport.
+            # Now print out the lines for all of the taxiway/runway nodes for this airport.
             tempString += '1200\n'
             for coord in taxiwayCoords:
                 tempString += '1201 {0} {1} both {2}\n'.format(coord[1], coord[0], coord[2])
 
             # Finally, print out the actual edges between the nodes.
-            for taxiway in taxiways:
+            for way in taxiwaysAndRunways:
                 prevCoord = 0
-                for coord in taxiway.taxiwayCoords:
+                for coord in way.coords:
                     if prevCoord == 0:
                         prevCoord = coord
                     else:
                         # TODO: Implement oneway taxiways.
-                        tempString += '1202 {0} {1} twoway taxiway {2}\n'.format(prevCoord[2], coord[2], taxiway.name)
+                        if isinstance(way, Runway):
+                            typeString = 'runway'
+                        else:
+                            typeString = 'taxiway'
+
+                        tempString += '1202 {0} {1} twoway {2} {3}\n'.format(prevCoord[2], coord[2], typeString, way.name)
+
+                        if typeString == 'runway':
+                            tempString += '1204 arrival {0}\n'.format(way.runwayEndNames[0] + ',' + way.runwayEndNames[1])
+
                         prevCoord = coord
-                    
+
         return tempString
 
 class Runway(AerodromeObject):
 
-    def __init__(self, runwayEndNames, runwayEndNodes, surface, width, nodes):
+    def __init__(self, name, runwayEndNames, runwayEndNodes, surface, width, nodes):
+        self.name = name
         self.runwayEndNames = runwayEndNames
         self.runwayEndNodes = runwayEndNodes
         self.surface = surface
@@ -317,6 +328,7 @@ class Runway(AerodromeObject):
 
     def buildGeometry(self, coordDict, nodeDict):
         self.geometry = LineString(nodesToCoords(self.nodes, coordDict))
+        self.coords = nodesToCoords(self.nodes, coordDict)
         firstEnd = headingToRunwayInt(computeHeading(self.geometry.coords[0], self.geometry.coords[-1]))
         if firstEnd > 18:
             self.geometry.coords = list(self.geometry.coords)[::-1]
@@ -351,8 +363,8 @@ class Taxiway(AerodromeObject):
         self.holdingPositions = []
 
     def buildGeometry(self, coordDict, nodeDict):
-        self.taxiwayCoords = nodesToCoords(self.nodes, coordDict)
-        self.geometry = LineString(self.taxiwayCoords)
+        self.coords = nodesToCoords(self.nodes, coordDict)
+        self.geometry = LineString(self.coords)
         self.leftEdgeLine = self.geometry.parallel_offset(metersToDeg(self.width / 2.0 - shoulderWidth), 'left', 2)
         self.rightEdgeLine = self.geometry.parallel_offset(metersToDeg(self.width / 2.0 - shoulderWidth), 'right', 2)
         self.concreteGeometry = self.geometry.buffer(metersToDeg(self.width)/2.0, 2)
@@ -383,12 +395,12 @@ class Taxiway(AerodromeObject):
             # if the node is the last in the taxiway, then there is no
             # following segement so we use the previous segment instead.
             if index < (len(self.nodes) - 1):
-                p1 = self.taxiwayCoords[index]
-                p2 = self.taxiwayCoords[index+1]
+                p1 = self.coords[index]
+                p2 = self.coords[index+1]
                 pos = p1
             else:
-                p1 = self.taxiwayCoords[index-1]
-                p2 = self.taxiwayCoords[index]
+                p1 = self.coords[index-1]
+                p2 = self.coords[index]
                 pos = p2
 
             # TODO: The dashed yellow lones should be on the left side of this line, which should be closer to the runway.  Currently they are drawn arbitrarily on one side, might need to reverse start and end if they are on the wrong side for a particular runway.
@@ -726,14 +738,14 @@ class Osm2apt_class(object):
 
                     #TODO: Determine and set the runway edge lighting.
 
-                    #TODO: Handle displaced throsholds and blast pads.
+                    #TODO: Handle displaced thresholds and blast pads.
 
                     #TODO: Handle runway markings, TDZ lighting, and REIL lighting.
 
                     # We have successfully read all the data for this runway
                     # so add it to the list of completed runways to be put
                     # in the output file.
-                    self.runways.append(Runway(runwayEndNames, runwayEndNodes, runwaySurface, runwayWidth, refs))
+                    self.runways.append(Runway(name, runwayEndNames, runwayEndNodes, runwaySurface, runwayWidth, refs))
 
                 # way: aeroway=taxiway
                 elif tags['aeroway'] == 'taxiway':
