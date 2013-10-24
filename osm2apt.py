@@ -343,7 +343,7 @@ class Taxiway(AerodromeObject):
     def buildGeometry(self, coordDict, nodeDict):
         self.taxiwayCoords = nodesToCoords(self.nodes, coordDict)
         self.geometry = LineString(self.taxiwayCoords)
-        self.concreteGeometry = self.geometry.buffer(metersToDeg(self.width), 2)
+        self.concreteGeometry = self.geometry.buffer(metersToDeg(self.width)/2.0, 2)
 
         # Loop over all the nodes that make up the taxiway and make a list of
         # any that are holding positions.
@@ -381,12 +381,11 @@ class Taxiway(AerodromeObject):
 
             # TODO: The dashed yellow lones should be on the left side of this line, which should be closer to the runway.  Currently they are drawn arbitrarily on one side, might need to reverse start and end if they are on the wrong side for a particular runway.
             hdg = computeHeading(p1, p2)
-            lineStart = travel(p1, hdg-90, metersToDeg(self.width))
-            lineEnd = travel(p1, hdg+90, metersToDeg(self.width))
+            shoulderWidth = 0.5
+            lineStart = travel(p1, hdg-90, metersToDeg(self.width/2.0 - shoulderWidth))
+            lineEnd = travel(p1, hdg+90, metersToDeg(self.width/2.0 - shoulderWidth))
 
-            ret += '120 hold line {0}\n'.format(self.name)
-            ret += '111 {0} {1} 4\n'.format(lineStart[1], lineStart[0])
-            ret += '115 {0} {1}\n'.format(lineEnd[1], lineEnd[0])
+            ret += printLine(LineString((lineStart, lineEnd)), 4, 'hold line {0}\n'.format(self.name))
 
         # Print out taxiway centerlines on top of the concrete.
         ret += printLine(self.geometry, 1, 'taxiway {0} centerline'.format(self.name))
