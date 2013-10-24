@@ -82,6 +82,28 @@ def computeTurnTo(pos1, origHeading, pos2):
 
     return (amount, direction)
 
+def computeSegmentHeading(node, nodes, coords):
+
+    # Determine which node along the way the node occurs on.
+    index = nodes.index(node)
+
+    # If the node is any but the last one, we use the direction of the
+    # _following_ segment of the taxiway to get the direction, however
+    # if the node is the last in the taxiway, then there is no
+    # following segement so we use the previous segment instead.
+    if index < (len(nodes) - 1):
+        p1 = coords[index]
+        p2 = coords[index+1]
+        pos = p1
+    else:
+        p1 = coords[index-1]
+        p2 = coords[index]
+        pos = p2
+
+    heading = computeHeading(p1, p2)
+
+    return (heading, pos)
+
 def travel(startPos, heading, distance):
     heading = normalizeHeading(heading)
     x = startPos[0]
@@ -247,6 +269,7 @@ class Aerodrome(SpatialObject):
         self.ele = convertToUnit(ele, 'ft')
         self.nodes = nodes
         self.assosciatedObjects = []
+        # TODO: set viewpoint location, row code 14, one per aerodrome.
 
     def buildGeometry(self, coordDict, nodeDict):
         if checkNodesFormClosedWay(self.nodes):
@@ -387,26 +410,13 @@ class Taxiway(AerodromeObject):
         # Print out holding position lines on top of the concrete (these lines
         # are purely visual, X-plane does not respect these in taxi routing)
         for node, tags, coord in self.holdingPositions:
-            # Determine which node along the taxiway the holding position occurs on.
-            index = self.nodes.index(node)
-
-            # If the node is any but the last one, we use the direction of the
-            # _following_ segment of the taxiway to get the direction, however
-            # if the node is the last in the taxiway, then there is no
-            # following segement so we use the previous segment instead.
-            if index < (len(self.nodes) - 1):
-                p1 = self.coords[index]
-                p2 = self.coords[index+1]
-                pos = p1
-            else:
-                p1 = self.coords[index-1]
-                p2 = self.coords[index]
-                pos = p2
+            headingAndPosition = computeSegmentHeading(node, self.nodes, self.coords)
+            hdg = headingAndPosition[0]
+            pos = headingAndPosition[1]
 
             # TODO: The dashed yellow lones should be on the left side of this line, which should be closer to the runway.  Currently they are drawn arbitrarily on one side, might need to reverse start and end if they are on the wrong side for a particular runway.
-            hdg = computeHeading(p1, p2)
-            lineStart = travel(p1, hdg-90, metersToDeg(self.width/2.0 - shoulderWidth))
-            lineEnd = travel(p1, hdg+90, metersToDeg(self.width/2.0 - shoulderWidth))
+            lineStart = travel(pos, hdg-90, metersToDeg(self.width/2.0 - shoulderWidth))
+            lineEnd = travel(pos, hdg+90, metersToDeg(self.width/2.0 - shoulderWidth))
 
             ret += printLine(LineString((lineStart, lineEnd)), 4, 'hold line {0}\n'.format(self.name))
 
@@ -574,6 +584,20 @@ class LightedObject(AerodromeObject):
             print 'ERROR: Lighted object of type "%s" is unknown, skipping output of this object.' % self.typeName
 
         return '21 {0} {1} {2} {3} {4} {5} {6}\n'.format(self.coord[1], self.coord[0], self.typeCode, self.heading, self.glideslope, self.runway, self.typeName)
+
+class Sign(AerodromeObject):
+
+    def __init__(self, coord, heading, size, text):
+        self.coord = coord
+        self.heading = heading
+        self.size = size
+        self.text = text
+
+    def buildGeometry(self):
+        self.geometry = Point(self.coord)
+
+    def toString():
+        return '20 {0} {1} {2} 0 {3} {4}'.format(self.coord[1], self.coord[0], self.heading, self.size, self.text)
 
 class Osm2apt_class(object):
 
