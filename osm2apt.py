@@ -183,6 +183,9 @@ def printPolygon(area):
         else:
             ret += '113 {0} {1}\n'.format(coord[1], coord[0])
 
+    for ring in area.interiors:
+        print 'ERROR: Polygon inner ring skipped.'
+
     return ret
 
 def isAbandoned(tags):
