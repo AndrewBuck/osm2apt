@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 # Global variables that are user settable.
-shoulderWidth = 0.5
+shoulderWidth = 1.0
 
 import argparse
 import math
@@ -461,12 +461,13 @@ class Beacon(AerodromeObject):
 
 class ParkingPosition(SpatialObject):
 
-    def __init__(self, coord, positionTypeTag):
+    def __init__(self, coord, positionTypeTag, width):
         self.coord = coord
         self.positionTypeTag = positionTypeTag
         self.heading = 360
         self.typeString = 'tie-down'
         self.aircraftTypeString = 'props'
+        self.width = width
 
         if self.positionTypeTag == 'parking_position':
             self.typeString = 'tie_down'
@@ -482,9 +483,17 @@ class ParkingPosition(SpatialObject):
 
     def buildGeometry(self, coordDict, nodeDict):
         self.geometry = Point(self.coord)
+        self.leftWingTip = travel(self.coord, self.heading-90, metersToDeg(self.width/2.0))
+        self.rightWingTip = travel(self.coord, self.heading+90, metersToDeg(self.width/2.0))
+        self.tail = travel(self.coord, self.heading+180, metersToDeg(self.width/2.0))
+        self.wingLine = LineString((self.leftWingTip, self.rightWingTip))
+        self.tailLine = LineString((self.coord, self.tail))
 
     def toString(self):
-        return '1300 {0} {1} {2} {3} {4}\n'.format(self.coord[1], self.coord[0], self.heading, self.typeString, self.aircraftTypeString)
+        ret = '1300 {0} {1} {2} {3} {4}\n'.format(self.coord[1], self.coord[0], self.heading, self.typeString, self.aircraftTypeString)
+        ret += printLine(self.wingLine, 1, self.typeString)
+        ret += printLine(self.tailLine, 1, self.typeString)
+        return ret
 
 class LightedObject(AerodromeObject):
 
@@ -598,7 +607,8 @@ class Osm2apt_class(object):
                 if tags['aeroway'] == 'parking_position' \
                 or tags['aeroway'] == 'hangar' \
                 or tags['aeroway'] == 'gate':
-                    self.parkingPositions.append(ParkingPosition(coord, tags['aeroway']))
+                    width = convertToUnit(coalesceValue(('width'), tags, '10 m'), 'm')
+                    self.parkingPositions.append(ParkingPosition(coord, tags['aeroway'], width))
 
             if 'man_made' in tags:
                 #node: man_made=beacon
