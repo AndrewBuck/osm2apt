@@ -5,9 +5,11 @@ shoulderWidth = 1.0
 
 import argparse
 import math
+import copy
 
 from imposm.parser import OSMParser
 from shapely.geometry import *
+from shapely.geometry.polygon import orient
 
 overpassQueryFile = open('overpass_query.txt', 'w')
 overpassQueryFile.write('data=\n\n[timeout:600];\n\n(\n')
@@ -147,6 +149,8 @@ def printLine(line, lineType, lineName):
 
     if isinstance(line, LineString):
         ret += printLineSegment(line, lineType, lineName)
+    else:
+        print 'ERROR: Should never get here. (printLine())'
 
     return ret
 
@@ -315,6 +319,10 @@ class Aerodrome(SpatialObject):
         for taxiway in self.listObjectsByType(Taxiway):
             for apron in self.listObjectsByType(Apron):
                 taxiway.concreteGeometry = taxiway.concreteGeometry.difference(apron.geometry)
+                taxiway.leftDotted = apron.geometry.intersection(taxiway.leftDotted)
+                taxiway.rightDotted = apron.geometry.intersection(taxiway.rightDotted)
+                taxiway.leftEdgeLine = taxiway.leftEdgeLine.difference(apron.geometry)
+                taxiway.rightEdgeLine = taxiway.rightEdgeLine.difference(apron.geometry)
 
     def toString(self):
         # Print out the main airport header line
@@ -421,7 +429,9 @@ class Taxiway(AerodromeObject):
         self.geometry = LineString(self.coords)
         self.leftEdgeLine = self.geometry.parallel_offset(metersToDeg(self.width / 2.0 - shoulderWidth), 'left', 2)
         self.rightEdgeLine = self.geometry.parallel_offset(metersToDeg(self.width / 2.0 - shoulderWidth), 'right', 2)
-        self.concreteGeometry = self.geometry.buffer(metersToDeg(self.width)/2.0, 2)
+        self.leftDotted = copy.deepcopy(self.leftEdgeLine)
+        self.rightDotted = copy.deepcopy(self.rightEdgeLine)
+        self.concreteGeometry = orient(self.geometry.buffer(metersToDeg(self.width)/2.0, 2))
 
         # Loop over all the nodes that make up the taxiway and make a list of
         # any that are holding positions.
@@ -455,6 +465,8 @@ class Taxiway(AerodromeObject):
         ret += printLine(self.geometry, 1, 'taxiway {0} centerline'.format(self.name))
         ret += printLine(self.leftEdgeLine, 3, 'taxiway {0} left line'.format(self.name))
         ret += printLine(self.rightEdgeLine, 3, 'taxiway {0} right line'.format(self.name))
+        ret += printLine(self.leftDotted, 2, 'taxiway {0} dotted line'.format(self.name))
+        ret += printLine(self.rightDotted, 2, 'taxiway {0} dotted line'.format(self.name))
         return ret
 
 class Windsock(AerodromeObject):
@@ -483,7 +495,7 @@ class Apron(AerodromeObject):
     def buildGeometry(self, coordDict, nodeDict):
         if checkNodesFormClosedWay(self.nodes):
             # TODO: Need to make sure the coords in the resulting geometry for a counter clockwise ring.
-            self.geometry = Polygon(nodesToCoords(self.nodes, coordDict))
+            self.geometry = orient(Polygon(nodesToCoords(self.nodes, coordDict)))
         else:
             print 'Not building geometry for apron since it is not closed.'
 
