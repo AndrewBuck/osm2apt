@@ -156,6 +156,13 @@ def printLine(line, lineType, lineName):
 
 def printArea(area):
     ret = ''
+
+    # TODO: Fix this to actually handle these if necessary, for now any time
+    # this gets passed a GeometryCollection the thing is empty anyway so
+    # nothing is lost by just exiting as we do now.
+    if isinstance(area, GeometryCollection):
+        return ret
+
     if area.exterior.is_ccw:
         coords = area.exterior.coords
     else:
@@ -284,6 +291,13 @@ class Aerodrome(SpatialObject):
                 ls.append(obj)
 
         return ls
+
+    def cleanGeometries(self):
+        for taxiway in self.listObjectsByType(Taxiway):
+            for apron in self.listObjectsByType(Apron):
+                print 'cleaning taxiway'
+                taxiway.concreteGeometry = taxiway.concreteGeometry.difference(apron.geometry)
+                print 'taxiway is now a %s' % taxiway.concreteGeometry
 
     def toString(self):
         # Print out the main airport header line
@@ -863,6 +877,9 @@ class Osm2apt_class(object):
 
         for ls, obj in objectsToRemove:
             ls.remove(obj)
+
+        for a in self.aerodromes:
+            a.cleanGeometries()
 
 # Main function
 print 'osm2apt version 0.3.0'
