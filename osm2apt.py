@@ -239,6 +239,12 @@ def computeJunctionSigns(coord, ways):
             if newTypeString != lastTypeString:
                 typeString = newTypeString
                 lastTypeString = typeString
+
+                # When we switch sign types we don't need the | symbol or we
+                # get an extra blank sign in between.  Check to see if the last
+                # character in the text so far is a | and if so, remove it.
+                if len(text) > 0 and text[-1] == '|':
+                    text = text[0:-1]
             else:
                 typeString = ''
 
