@@ -10,6 +10,7 @@ import copy
 from imposm.parser import OSMParser
 from shapely.geometry import *
 from shapely.geometry.polygon import orient
+from shapely.ops import cascaded_union
 
 overpassQueryFile = open('overpass_query.txt', 'w')
 overpassQueryFile.write('data=\n\n[timeout:600];\n\n(\n')
@@ -365,6 +366,14 @@ class Aerodrome(SpatialObject):
                 self.taxiwaySurfaces[taxiway.surfaceInteger] = self.taxiwaySurfaces[taxiway.surfaceInteger].union(taxiway.concreteGeometry)
             else:
                 self.taxiwaySurfaces[taxiway.surfaceInteger] = taxiway.concreteGeometry
+
+            # Pairwise loop over all of the other taxiways to compute all of
+            # the intersections between the taxiway edge lines.
+            for taxiway2 in self.listObjectsByType(Taxiway):
+                if taxiway2 is not taxiway:
+                    center = taxiway.geometry.buffer(metersToDeg(taxiway.width / 2.0 - shoulderWidth))
+                    taxiway2.leftEdgeLine = taxiway2.leftEdgeLine.difference(center)
+                    taxiway2.rightEdgeLine = taxiway2.rightEdgeLine.difference(center)
 
     def toString(self):
         # Print out the main airport header line
