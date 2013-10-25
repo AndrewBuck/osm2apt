@@ -585,6 +585,11 @@ class Runway(AerodromeObject):
     def buildGeometry(self, coordDict, nodeDict):
         self.geometry = LineString(nodesToCoords(self.nodes, coordDict))
         self.coords = nodesToCoords(self.nodes, coordDict)
+
+        # Check to see if the first end of the runway is drawn with the lower
+        # numbered end first or if it needs to be reversed so that the
+        # direction of the line lines up with the name.  Note that this assumes
+        # the ref tag gives the lower number first, like 18/36.
         firstEnd = headingToRunwayInt(computeHeading(self.geometry.coords[0], self.geometry.coords[-1]))
         if firstEnd > 18:
             self.geometry.coords = list(self.geometry.coords)[::-1]
@@ -592,22 +597,6 @@ class Runway(AerodromeObject):
 
         self.heading = computeHeading(self.geometry.coords[0], self.geometry.coords[-1])
         self.geometryPolygon = self.geometry.buffer(metersToDeg(self.width/2.0), 1)
-
-        # Check to see if the first end of the runway is drawn with the lower
-        # numbered end first or if it needs to be reversed so that the
-        # direction of the line lines up with the name.  Note that this assumes
-        # the ref tag gives the lower number first, like 18/36.
-        #TODO: Need to fix this runway reversing code, for now it seems to not be correct so it is commented out.
-        '''
-        if ((self.geometry.coords[0][0] < self.geometry.coords[-1][0]) or ((self.geometry.coords[0][0] == self.geometry.coords[-1][0]) and self.geometry.coords[0][1] > self.geometry[-1][1])):
-            self.geometry.coords = list(self.geometry.coords)[::-1]
-            self.nodes.reverse()
-            print 'Reversing runway %s' % self.runwayEndNames
-            print list(self.geometry.coords)
-        else:
-            print 'Not reversing runway %s' % self.runwayEndNames
-            print list(self.geometry.coords)
-        '''
 
     def toString(self):
         return '100 {0} {1} 0 0.15 0 0 1 {2} {3} {4} 0 0 1 0 0 0 {5} {6} {7} 0 0 1 0 0 0\n'.format(self.width, self.surfaceInteger, self.runwayEndNames[0], self.geometry.coords[0][1], self.geometry.coords[0][0], self.runwayEndNames[1], self.geometry.coords[-1][1], self.geometry.coords[-1][0])
