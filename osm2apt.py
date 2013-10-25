@@ -434,6 +434,39 @@ class Aerodrome(SpatialObject):
 
                         prevCoord = coord
 
+            # Place signs at the taxiway intersections
+            for coord, ways in taxiwayCoords.items():
+                if len(ways) >= 2:
+                    for way1 in ways:
+                        for way2 in ways[ways.index(way1):]:
+                            if way1 is not way2:
+                                print 'coord: %s\nway1: %s\nway2: %s' % (coord, way1, way2)
+                                if isinstance(way1, Taxiway) and isinstance(way2, Taxiway):
+                                    setbackDistance = metersToDeg(max(way1.width, way2.width) + 5.0)
+                                    ring = Point(coord).buffer(setbackDistance).exterior
+                                    signLocs = ring.intersection(way1.geometry.union(way2.geometry))
+                                    for point in signLocs.geoms:
+                                        d1 = way1.geometry.distance(point)
+                                        d2 = way2.geometry.distance(point)
+                                        if d1 < d2:
+                                            way = way1
+                                            otherWay = way2
+                                        else:
+                                            way = way2
+                                            otherWay = way1
+
+                                        distance1 = way.geometry.project(point)
+                                        distance2 = way.geometry.project(Point(coord))
+                                        if distance1 < distance2:
+                                            distance = distance1 - metersToDeg(1.0)
+                                        else:
+                                            distance = distance1 + metersToDeg(1.0)
+
+                                        point2 = way.geometry.interpolate(distance)
+                                        hdg = computeHeading((point.x, point.y), (point2.x, point2.y))
+                                        signLoc = travel((point.x, point.y), hdg-90, metersToDeg(way.width/2.0 + 2.5))
+                                        # TODO: Need to add an arrow to this sign indicating which direction to turn.
+                                        tempString += Sign(signLoc, hdg, 2, '{@Y}'+otherWay.name).toString()
         return tempString
 
 class Runway(AerodromeObject):
@@ -517,8 +550,8 @@ class Taxiway(AerodromeObject):
             hdg = headingAndPosition[0]
             pos = headingAndPosition[1]
             # TODO: Need to properly set runway.
-            ret += Sign(travel(pos, hdg+90, metersToDeg(self.width + 2.5)), hdg, 3, '{@R}18-36').toString()
-            ret += Sign(travel(pos, hdg-90, metersToDeg(self.width + 2.5)), hdg, 3, '{@R}18-36').toString()
+            ret += Sign(travel(pos, hdg+90, metersToDeg(self.width/2.0 + 2.5)), hdg, 3, '{@R}18-36').toString()
+            ret += Sign(travel(pos, hdg-90, metersToDeg(self.width/2.0 + 2.5)), hdg, 3, '{@R}18-36').toString()
 
             # TODO: The dashed yellow lines should be on the left side of this line, which should be closer to the runway.  Currently they are drawn arbitrarily on one side, might need to reverse start and end if they are on the wrong side for a particular runway.
             lineStart = travel(pos, hdg-90, metersToDeg(self.width/2.0 - shoulderWidth))
