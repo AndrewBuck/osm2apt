@@ -166,7 +166,7 @@ def printLineSegment(line, lineType, lineName):
 
     return ret
 
-def printArea(area):
+def printArea(area, areaType, surface, smoothness, heading, name):
     ret = ''
 
     # TODO: Fix this to actually handle these if necessary, for now any time
@@ -174,16 +174,16 @@ def printArea(area):
     # nothing is lost by just exiting as we do now.
     if isinstance(area, GeometryCollection) or isinstance(area, MultiPolygon):
         for obj in area.geoms:
-            ret += printArea(obj)
+            ret += printArea(obj, areaType, surface, smoothness, heading, name)
         return ret
 
     if isinstance(area, Polygon):
-        ret += printPolygon(area)
+        ret += printPolygon(area, areaType, surface, smoothness, heading, name)
 
     return ret
 
-def printPolygon(area):
-    ret = ''
+def printPolygon(area, areaType, surface, smoothness, heading, name):
+    ret = '{0} {1} {2} {3} {4}\n'.format(areaType, surface, smoothness, heading, name)
     if area.exterior.is_ccw:
         coords = area.exterior.coords
     else:
@@ -381,8 +381,7 @@ class Aerodrome(SpatialObject):
         tempString = '1 {0} 0 0 {1} {2}\n'.format(self.ele, self.code, self.name)
 
         # Print out the boundary area of the aerodrome.
-        tempString += '130 {0} boundary\n'.format(self.name)
-        tempString += printArea(self.geometry)
+        tempString += printArea(self.geometry, 130, '', '', '', self.name)
 
         # Print out all of the assosciated objects for this airport to apt.dat.
         taxiwayCoords = {}
@@ -391,10 +390,9 @@ class Aerodrome(SpatialObject):
 
         # Print out the combined taxiway surfaces.
         for surf, area in self.taxiwaySurfaces.items():
-            tempString += '110 {0} 0.15 360 {1}\n'.format(surf, 'taxiway surface')
             area = area.buffer(0)
             area = area.simplify(metersToDeg(0.5))
-            tempString += printArea(area)
+            tempString += printArea(area, 110, surf, 0.15, 360, 'taxiway surface ' + str(surf))
 
         # If the airport has associated taxiways, also print out a taxiway network.
         taxiways = self.listObjectsByType(Taxiway)
@@ -598,8 +596,7 @@ class Apron(AerodromeObject):
             print 'Not building geometry for apron since it is not closed.'
 
     def toString(self):
-        ret = '110 {0} 0.15 360 {1}\n'.format(self.surfaceInteger, self.name)
-        ret += printArea(self.geometry)
+        ret = printArea(self.geometry, 110, self.surfaceInteger, 0.15, 360, self.name)
 
         # If this apron is named, also create a start location for it.
         # TODO: If an airport has no named aprons we should choose the largest one and put a start location there.  An alternative is for the aerodrome class to make sure that it has at least one named apron by naming the largest on 'Ramp' or something if none are named.
