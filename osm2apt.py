@@ -367,8 +367,9 @@ class Aerodrome(SpatialObject):
             else:
                 self.taxiwaySurfaces[taxiway.surfaceInteger] = taxiway.concreteGeometry
 
-            # Pairwise loop over all of the other taxiways to compute all of
-            # the intersections between the taxiway edge lines.
+            # Loop over each pair of taxiways and use a buffer along the center
+            # of each taxiway to trim out the shoulder markings on the other
+            # one; this cleans up the intersections.
             for taxiway2 in self.listObjectsByType(Taxiway):
                 if taxiway2 is not taxiway:
                     center = taxiway.geometry.buffer(metersToDeg(taxiway.width / 2.0 - shoulderWidth))
