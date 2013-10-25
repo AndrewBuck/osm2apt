@@ -229,7 +229,7 @@ def computeJunctionSigns(coord, ways):
         text = ''
         lastTypeString = '-1'
         typeString = ''
-        # TODO: First sort subsignParts from lowest to highest deltaHeading.
+        subsignParts.sort()
         for (deltaHeading, partText, way), isLast in lookahead(subsignParts):
             if isinstance(way, Taxiway):
                 newTypeString = '{@Y}'
