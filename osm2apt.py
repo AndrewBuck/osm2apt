@@ -221,7 +221,7 @@ def computeJunctionSigns(coord, ways):
 
         text = ''
         # TODO: First sort subsignParts from lowest to highest deltaHeading.
-        for deltaHeading, partText, way in subsignParts:
+        for (deltaHeading, partText, way), isLast in lookahead(subsignParts):
             typeString = ''
             if way1 is not way:
                 if isinstance(way, Taxiway):
@@ -231,7 +231,9 @@ def computeJunctionSigns(coord, ways):
 
                 text += typeString + partText
 
-        signs.append(Sign(signLoc, normalizeHeading(setbackHeading1+180), 2, text))
+                if not isLast:
+                    text += '|'
+        signs.append(Sign(signLoc, normalizeHeading(setbackHeading1), 2, text))
 
     return signs
 
