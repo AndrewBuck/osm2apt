@@ -1092,7 +1092,7 @@ class Osm2apt_class(object):
             a.cleanGeometries()
 
 # Main function
-print 'osm2apt version 0.4.0'
+print 'osm2apt version 0.4.1'
 
 # Check and parse commandline
 argumentParser = argparse.ArgumentParser()
