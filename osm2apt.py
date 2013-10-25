@@ -484,12 +484,16 @@ class Taxiway(AerodromeObject):
 
         # Print out holding position lines on top of the concrete (these lines
         # are purely visual, X-plane does not respect these in taxi routing)
+        self.signs = []
         for node, tags, coord in self.holdingPositions:
             headingAndPosition = computeSegmentHeading(node, self.nodes, self.coords)
             hdg = headingAndPosition[0]
             pos = headingAndPosition[1]
+            # TODO: Need to properly set runway.
+            ret += Sign(travel(pos, hdg+90, metersToDeg(self.width + 2.5)), hdg, 3, '{@R}18-36').toString()
+            ret += Sign(travel(pos, hdg-90, metersToDeg(self.width + 2.5)), hdg, 3, '{@R}18-36').toString()
 
-            # TODO: The dashed yellow lones should be on the left side of this line, which should be closer to the runway.  Currently they are drawn arbitrarily on one side, might need to reverse start and end if they are on the wrong side for a particular runway.
+            # TODO: The dashed yellow lines should be on the left side of this line, which should be closer to the runway.  Currently they are drawn arbitrarily on one side, might need to reverse start and end if they are on the wrong side for a particular runway.
             lineStart = travel(pos, hdg-90, metersToDeg(self.width/2.0 - shoulderWidth))
             lineEnd = travel(pos, hdg+90, metersToDeg(self.width/2.0 - shoulderWidth))
 
@@ -673,8 +677,8 @@ class Sign(AerodromeObject):
     def buildGeometry(self):
         self.geometry = Point(self.coord)
 
-    def toString():
-        return '20 {0} {1} {2} 0 {3} {4}'.format(self.coord[1], self.coord[0], self.heading, self.size, self.text)
+    def toString(self):
+        return '20 {0} {1} {2} 0 {3} {4}\n'.format(self.coord[1], self.coord[0], self.heading, self.size, self.text)
 
 class Osm2apt_class(object):
 
