@@ -195,7 +195,16 @@ def printPolygon(area):
             ret += '113 {0} {1}\n'.format(coord[1], coord[0])
 
     for ring in area.interiors:
-        print 'ERROR: Polygon inner ring skipped.'
+        if ring.is_ccw:
+            coords = reversed(ring.coords)
+        else:
+            coords = ring.coords
+
+        for coord, isLast in lookahead(coords):
+            if not isLast:
+                ret += '111 {0} {1}\n'.format(coord[1], coord[0])
+            else:
+                ret += '113 {0} {1}\n'.format(coord[1], coord[0])
 
     return ret
 
@@ -316,17 +325,29 @@ class Aerodrome(SpatialObject):
         return ls
 
     def cleanGeometries(self):
+        self.taxiwaySurfaces = {}
         for taxiway in self.listObjectsByType(Taxiway):
             for apron in self.listObjectsByType(Apron):
+                # Cut away the parts of the taxiways surface as well as just the taxiway edge lines that are on aprons.
                 taxiway.concreteGeometry = taxiway.concreteGeometry.difference(apron.geometry)
                 taxiway.leftDotted = apron.geometry.intersection(taxiway.leftDotted)
                 taxiway.rightDotted = apron.geometry.intersection(taxiway.rightDotted)
                 taxiway.leftEdgeLine = taxiway.leftEdgeLine.difference(apron.geometry)
                 taxiway.rightEdgeLine = taxiway.rightEdgeLine.difference(apron.geometry)
 
+
             for runway in self.listObjectsByType(Runway):
+                # Cut away the parts of the taxiways surface as well as just the taxiway edge lines that are on runways.
                 taxiway.leftEdgeLine = taxiway.leftEdgeLine.difference(runway.geometryPolygon)
                 taxiway.rightEdgeLine = taxiway.rightEdgeLine.difference(runway.geometryPolygon)
+                #taxiway.concreteGeometry = taxiway.concreteGeometry.difference(runway.geometryPolygon)
+
+            # Combine all of the taxiways of the same surface type together into a single multipolygon.
+            # TODO: This could probably be re-factored to use a 'cascading union' from shapely
+            if taxiway.surfaceInteger in self.taxiwaySurfaces:
+                self.taxiwaySurfaces[taxiway.surfaceInteger] = self.taxiwaySurfaces[taxiway.surfaceInteger].union(taxiway.concreteGeometry)
+            else:
+                self.taxiwaySurfaces[taxiway.surfaceInteger] = taxiway.concreteGeometry
 
     def toString(self):
         # Print out the main airport header line
@@ -340,6 +361,13 @@ class Aerodrome(SpatialObject):
         taxiwayCoords = {}
         for obj in self.assosciatedObjects:
             tempString += obj.toString()
+
+        # Print out the combined taxiway surfaces.
+        for surf, area in self.taxiwaySurfaces.items():
+            tempString += '110 {0} 0.15 360 {1}\n'.format(surf, 'taxiway surface')
+            area = area.buffer(0)
+            area = area.simplify(metersToDeg(0.5))
+            tempString += printArea(area)
 
         # If the airport has associated taxiways, also print out a taxiway network.
         taxiways = self.listObjectsByType(Taxiway)
@@ -452,9 +480,7 @@ class Taxiway(AerodromeObject):
                         self.holdingPositions.append((node, nodeProps[0], nodeProps[1]))
 
     def toString(self):
-        # Print out the concrete area which forms the physical surface of the taxiway.
-        ret = '110 {0} 0.15 360 {1}\n'.format(self.surfaceInteger, self.name)
-        ret += printArea(self.concreteGeometry)
+        ret = ''
 
         # Print out holding position lines on top of the concrete (these lines
         # are purely visual, X-plane does not respect these in taxi routing)
