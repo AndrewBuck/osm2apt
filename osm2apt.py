@@ -151,7 +151,7 @@ def computeNearestObject(obj, otherObjs):
 
 def computeJunctionSigns(coord, ways):
     signs = []
-    jd = {}
+    junctions = []
     wayWidths = []
     wayGeoms = []
     # Make lists of all the taxiway widths and centerline geometries so we can
@@ -184,18 +184,24 @@ def computeJunctionSigns(coord, ways):
 
     for setbackPoint in setbackPoints:
         closestWay, distance = computeNearestObject(setbackPoint, ways)
-        junctionPoint, distance = computeNearestObject(closestWay, junctionPoints)
+        wayDistanceSetback = closestWay.geometry.project(setbackPoint)
+        wayDistanceJunction = closestWay.geometry.project(Point(coord))
+        if wayDistanceSetback > wayDistanceJunction:
+            junctionPoint = closestWay.geometry.interpolate(wayDistanceJunction + metersToDeg(1.0))
+        else:
+            junctionPoint = closestWay.geometry.interpolate(wayDistanceJunction - metersToDeg(1.0))
+        #junctionPoint, distance = computeNearestObject(closestWay, junctionPoints)
         setbackHeading = computeHeadingAtPoint(closestWay.geometry, setbackPoint, junctionPoint)
         junctionHeading = computeHeadingAtPoint(closestWay.geometry, junctionPoint, Point(coord))
-        jd[closestWay] = (setbackPoint, setbackHeading, junctionHeading)
+        junctions.append((closestWay, setbackPoint, setbackHeading, junctionHeading))
 
-    subsignParts = []
-    for way1, (setbackPoint1, setbackHeading1, junctionHeading1) in jd.items():
+    for (way1, setbackPoint1, setbackHeading1, junctionHeading1) in junctions:
         signLoc = travel(setbackPoint1.coords[0], setbackHeading1-90, metersToDeg(way1.width/2.0 + 2.5))
 
+        subsignParts = []
         # Determine the text to place on the sign.
-        for way2, (setbackPoint2, setbackHeading2, junctionHeading2) in jd.items(): 
-            if way1 is not way2:
+        for (way2, setbackPoint2, setbackHeading2, junctionHeading2) in junctions:
+            if setbackPoint1.distance(setbackPoint2) > metersToDeg(1.0):
                 headingString = ''
                 deltaHeading, direction = computeHeadingDelta(junctionHeading1, junctionHeading2+180)
                 directionLetter = direction[0]
@@ -211,6 +217,7 @@ def computeJunctionSigns(coord, ways):
                 else:
                     headingString = '{^d}'
 
+                # Print leftward arrows to the left of the name and rightward arrows on the right.
                 if direction == 'left':
                     deltaHeading *= -1.0
                     text = headingString + way2.name
@@ -223,16 +230,15 @@ def computeJunctionSigns(coord, ways):
         # TODO: First sort subsignParts from lowest to highest deltaHeading.
         for (deltaHeading, partText, way), isLast in lookahead(subsignParts):
             typeString = ''
-            if way1 is not way:
-                if isinstance(way, Taxiway):
-                    typeString = '{@Y}'
-                elif isinstance(way, Runway):
-                    typeString = '{@R}'
+            if isinstance(way, Taxiway):
+                typeString = '{@Y}'
+            elif isinstance(way, Runway):
+                typeString = '{@R}'
 
-                text += typeString + partText
+            text += typeString + partText
 
-                if not isLast:
-                    text += '|'
+            if not isLast:
+                text += '|'
         signs.append(Sign(signLoc, normalizeHeading(setbackHeading1), 2, text))
 
     return signs
@@ -313,7 +319,7 @@ def printArea(area, areaType, surface, smoothness, heading, name):
     return ret
 
 def printPolygon(area, areaType, surface, smoothness, heading, name):
-    ret = '{0} {1} {2} {3} {4}\n'.format(areaType, surface, smoothness, round(heading), name)
+    ret = '{0} {1} {2} {3} {4}\n'.format(areaType, surface, smoothness, heading, name)
     if area.exterior.is_ccw:
         coords = area.exterior.coords
     else:
