@@ -68,7 +68,11 @@ def headingToDeg(heading):
 
 def computeTurnTo(pos1, origHeading, pos2):
     newHeading = computeHeading(pos1, pos2)
+    return computeHeadingDelta(origHeading, newHeading)
+
+def computeHeadingDelta(origHeading, newHeading):
     normalizeHeading(origHeading)
+    normalizeHeading(newHeading)
     diff = math.fabs(origHeading - newHeading)
     if diff <= 180:
         amount = diff
@@ -106,6 +110,130 @@ def computeSegmentHeading(node, nodes, coords):
     heading = computeHeading(p1, p2)
 
     return (heading, pos)
+
+def computeHeadingAtPoint(line, point, towardPoint=-1, delta=metersToDeg(0.5)):
+    distance = line.project(point)
+
+    if towardPoint != -1:
+        distanceToward = line.project(towardPoint)
+        if distanceToward < distance:
+            delta *= -1.0
+            
+    deltaPoint = line.interpolate(distance+delta)
+
+    return computeHeading((point.x, point.y), (deltaPoint.x, deltaPoint.y))
+
+def computeNearestObject(obj, otherObjs):
+    tempDistance = -1
+    shortestDistance = -1
+    nearestObject = -1
+    if isinstance(obj, SpatialObject):
+        geometry = obj.geometry
+    else:
+        geometry = obj
+
+    for otherObj in otherObjs:
+        if isinstance(otherObj, SpatialObject):
+            otherGeometry = otherObj.geometry
+        else:
+            otherGeometry = otherObj
+
+        tempDistance = geometry.distance(otherGeometry)
+        if shortestDistance == -1:
+            shortestDistance = tempDistance
+            nearestObject = otherObj
+        else:
+            if tempDistance < shortestDistance:
+                shortestDistance = tempDistance
+                nearestObject = otherObj
+
+    return (nearestObject, shortestDistance)
+
+def computeJunctionSigns(coord, ways):
+    signs = []
+    jd = {}
+    wayWidths = []
+    wayGeoms = []
+    # Make lists of all the taxiway widths and centerline geometries so we can
+    # find the maximum width and combine all the geometries into a temporary
+    # union of all the taxiways/runways that join at this junction.
+    for way in ways:
+        wayWidths.append(way.width)
+        wayGeoms.append(way.geometry)
+
+    geometryUnion = cascaded_union(wayGeoms)
+
+    # Compute the intersection points of the geometries, first at a large ring
+    # out to where the signs will be placed, then again at a 1 meter ring right
+    # around the junction node to see what direction each way enters the
+    # junction from.
+    setbackDistance = metersToDeg(max(wayWidths) + 5.0)
+    setbackRing = Point(coord).buffer(setbackDistance).exterior
+    setbackPoints = setbackRing.intersection(geometryUnion)
+
+    junctionDistance = metersToDeg(1.0)
+    junctionRing = Point(coord).buffer(junctionDistance).exterior
+    junctionPoints = junctionRing.intersection(geometryUnion)
+    
+    # If at the setback distance there is only a single point rather than a
+    # multipoint then at most one taxiway is long enough to even reach the
+    # setback ring, so we just return no signs since they are not needed
+    # anyway.
+    if not isinstance(setbackPoints, MultiPoint):
+        return signs
+
+    for setbackPoint in setbackPoints:
+        closestWay, distance = computeNearestObject(setbackPoint, ways)
+        junctionPoint, distance = computeNearestObject(closestWay, junctionPoints)
+        setbackHeading = computeHeadingAtPoint(closestWay.geometry, setbackPoint, junctionPoint)
+        junctionHeading = computeHeadingAtPoint(closestWay.geometry, junctionPoint, Point(coord))
+        jd[closestWay] = (setbackPoint, setbackHeading, junctionHeading)
+
+    subsignParts = []
+    for way1, (setbackPoint1, setbackHeading1, junctionHeading1) in jd.items():
+        signLoc = travel(setbackPoint1.coords[0], setbackHeading1-90, metersToDeg(way1.width/2.0 + 2.5))
+
+        # Determine the text to place on the sign.
+        for way2, (setbackPoint2, setbackHeading2, junctionHeading2) in jd.items(): 
+            if way1 is not way2:
+                headingString = ''
+                deltaHeading, direction = computeHeadingDelta(junctionHeading1, junctionHeading2+180)
+                directionLetter = direction[0]
+
+                if deltaHeading <= 22.5:
+                    headingString = '{^u}'
+                elif deltaHeading <= 67.5:
+                    headingString = '{^' + directionLetter + 'u}'
+                elif deltaHeading <= 112.5:
+                    headingString = '{^' + directionLetter + '}'
+                elif deltaHeading <= 157.5:
+                    headingString = '{^' + directionLetter + 'd}'
+                else:
+                    headingString = '{^d}'
+
+                if direction == 'left':
+                    deltaHeading *= -1.0
+                    text = headingString + way2.name
+                else:
+                    text = way2.name + headingString
+
+                subsignParts.append((deltaHeading, text, way2))
+
+        text = ''
+        # TODO: First sort subsignParts from lowest to highest deltaHeading.
+        for deltaHeading, partText, way in subsignParts:
+            typeString = ''
+            if way1 is not way:
+                if isinstance(way, Taxiway):
+                    typeString = '{@Y}'
+                elif isinstance(way, Runway):
+                    typeString = '{@R}'
+
+                text += typeString + partText
+
+        signs.append(Sign(signLoc, normalizeHeading(setbackHeading1+180), 2, text))
+
+    return signs
 
 def travel(startPos, heading, distance):
     heading = normalizeHeading(heading)
@@ -435,36 +563,10 @@ class Aerodrome(SpatialObject):
             # Place signs at the taxiway intersections
             for coord, ways in taxiwayCoords.items():
                 if len(ways) >= 2:
-                    for way1 in ways:
-                        for way2 in ways[ways.index(way1):]:
-                            if way1 is not way2:
-                                print 'coord: %s\nway1: %s\nway2: %s' % (coord, way1, way2)
-                                if isinstance(way1, Taxiway) and isinstance(way2, Taxiway):
-                                    setbackDistance = metersToDeg(max(way1.width, way2.width) + 5.0)
-                                    ring = Point(coord).buffer(setbackDistance).exterior
-                                    signLocs = ring.intersection(way1.geometry.union(way2.geometry))
-                                    for point in signLocs.geoms:
-                                        d1 = way1.geometry.distance(point)
-                                        d2 = way2.geometry.distance(point)
-                                        if d1 < d2:
-                                            way = way1
-                                            otherWay = way2
-                                        else:
-                                            way = way2
-                                            otherWay = way1
+                    signs = computeJunctionSigns(coord, ways)
+                    for sign in signs:
+                        tempString += sign.toString()
 
-                                        distance1 = way.geometry.project(point)
-                                        distance2 = way.geometry.project(Point(coord))
-                                        if distance1 < distance2:
-                                            distance = distance1 - metersToDeg(1.0)
-                                        else:
-                                            distance = distance1 + metersToDeg(1.0)
-
-                                        point2 = way.geometry.interpolate(distance)
-                                        hdg = computeHeading((point.x, point.y), (point2.x, point2.y))
-                                        signLoc = travel((point.x, point.y), hdg-90, metersToDeg(way.width/2.0 + 2.5))
-                                        # TODO: Need to add an arrow to this sign indicating which direction to turn.
-                                        tempString += Sign(signLoc, hdg, 2, '{@Y}'+otherWay.name).toString()
         return tempString
 
 class Runway(AerodromeObject):
@@ -670,20 +772,7 @@ class LightedObject(AerodromeObject):
 
     def toString(self):
         # Determine the nearest runway to this object.
-        tempDistance = -1
-        shortestDistance = -1
-        nearestRunway = -1
-        for runway in self.parentAerodrome.listObjectsByType(Runway):
-            # TODO: Refactor this and other occurrences into a function.
-            tempDistance = self.geometry.distance(runway.geometry)
-            if shortestDistance == -1:
-                shortestDistance = tempDistance
-                nearestRunway = runway
-            else:
-                if tempDistance < shortestDistance:
-                    shortestDistance = tempDistance
-                    nearestRunway = runway
-
+        nearestRunway, shortestDistance = computeNearestObject(self.geometry, self.parentAerodrome.listObjectsByType(Runway))
         turn = -1
         if nearestRunway != -1:
             # Find out what distance along the runway this object is at.
