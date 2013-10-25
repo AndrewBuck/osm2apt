@@ -39,9 +39,7 @@ def computeHeading(coord1, coord2):
         math.sin(lat1)*math.cos(lat2)*math.cos(dLon)
     hdg = math.atan2(y, x) * 180.0 / math.pi
 
-    if (hdg < 0):
-        hdg+= 360.0
-
+    hdg = normalizeHeading(hdg)
     return hdg
 
 def headingToRunwayInt(heading):
@@ -67,12 +65,13 @@ def headingToDeg(heading):
     return (450 - heading) % 360.0
 
 def computeTurnTo(pos1, origHeading, pos2):
+    origHeading = normalizeHeading(origHeading)
     newHeading = computeHeading(pos1, pos2)
     return computeHeadingDelta(origHeading, newHeading)
 
 def computeHeadingDelta(origHeading, newHeading):
-    normalizeHeading(origHeading)
-    normalizeHeading(newHeading)
+    origHeading = normalizeHeading(origHeading)
+    newHeading = normalizeHeading(newHeading)
     diff = math.fabs(origHeading - newHeading)
     if diff <= 180:
         amount = diff
