@@ -313,7 +313,7 @@ def printArea(area, areaType, surface, smoothness, heading, name):
     return ret
 
 def printPolygon(area, areaType, surface, smoothness, heading, name):
-    ret = '{0} {1} {2} {3} {4}\n'.format(areaType, surface, smoothness, heading, name)
+    ret = '{0} {1} {2} {3} {4}\n'.format(areaType, surface, smoothness, round(heading), name)
     if area.exterior.is_ccw:
         coords = area.exterior.coords
     else:
@@ -743,7 +743,7 @@ class ParkingPosition(SpatialObject):
         self.tailLine = LineString((self.coord, self.tail))
 
     def toString(self):
-        ret = '1300 {0} {1} {2} {3} {4}\n'.format(self.coord[1], self.coord[0], self.heading, self.typeString, self.aircraftTypeString)
+        ret = '1300 {0} {1} {2} {3} {4}\n'.format(self.coord[1], self.coord[0], round(self.heading), self.typeString, self.aircraftTypeString)
         ret += printLine(self.wingLine, 1, self.typeString)
         ret += printLine(self.tailLine, 1, self.typeString)
         return ret
@@ -801,7 +801,7 @@ class LightedObject(AerodromeObject):
         else:
             print 'ERROR: Lighted object of type "%s" is unknown, skipping output of this object.' % self.typeName
 
-        return '21 {0} {1} {2} {3} {4} {5} {6}\n'.format(self.coord[1], self.coord[0], self.typeCode, self.heading, self.glideslope, self.runway, self.typeName)
+        return '21 {0} {1} {2} {3} {4} {5} {6}\n'.format(self.coord[1], self.coord[0], self.typeCode, round(self.heading), self.glideslope, self.runway, self.typeName)
 
 class Sign(AerodromeObject):
 
@@ -815,7 +815,7 @@ class Sign(AerodromeObject):
         self.geometry = Point(self.coord)
 
     def toString(self):
-        return '20 {0} {1} {2} 0 {3} {4}\n'.format(self.coord[1], self.coord[0], self.heading, self.size, self.text)
+        return '20 {0} {1} {2} 0 {3} {4}\n'.format(self.coord[1], self.coord[0], round(self.heading), self.size, self.text)
 
 class Osm2apt_class(object):
 
