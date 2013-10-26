@@ -148,7 +148,7 @@ def computeNearestObject(obj, otherObjs):
 
     return (nearestObject, shortestDistance)
 
-def computeJunctionSigns(coord, ways):
+def computeJunctionSigns(coord, ways, parentAerodrome):
     signs = []
     junctions = []
     wayWidths = []
@@ -196,6 +196,12 @@ def computeJunctionSigns(coord, ways):
 
     for (way1, setbackPoint1, setbackHeading1, junctionHeading1) in junctions:
         signLoc = travel(setbackPoint1.coords[0], setbackHeading1-90, metersToDeg(way1.width/2.0 + 2.5))
+
+        # If the location of this sign would place it on an apron then just skip it.
+        # TODO: Could try to project to the nearest edge of the apron and maybe place the sign there instead.
+        nearestApron, distance = computeNearestObject(Point(signLoc), parentAerodrome.listObjectsByType(Apron))
+        if distance < 1E-14:
+            continue
 
         subsignParts = []
         # Determine the text to place on the sign.
@@ -583,7 +589,7 @@ class Aerodrome(SpatialObject):
             # Place signs at the taxiway intersections
             for coord, ways in taxiwayCoords.items():
                 if len(ways) >= 2:
-                    signs = computeJunctionSigns(coord, ways)
+                    signs = computeJunctionSigns(coord, ways, self)
                     for sign in signs:
                         tempString += sign.toString()
 
