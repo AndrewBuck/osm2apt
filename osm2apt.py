@@ -732,13 +732,13 @@ class Beacon(AerodromeObject):
 
 class ParkingPosition(SpatialObject):
 
-    def __init__(self, coord, positionTypeTag, width):
+    def __init__(self, coord, positionTypeTag, width, heading):
         self.coord = coord
         self.positionTypeTag = positionTypeTag
-        self.heading = 360
         self.typeString = 'tie-down'
         self.aircraftTypeString = 'props'
         self.width = width
+        self.heading = float(heading)
 
         if self.positionTypeTag == 'parking_position':
             self.typeString = 'tie_down'
@@ -880,7 +880,8 @@ class Osm2apt_class(object):
                 or tags['aeroway'] == 'hangar' \
                 or tags['aeroway'] == 'gate':
                     width = convertToUnit(coalesceValue(('width'), tags, '10 m'), 'm')
-                    self.parkingPositions.append(ParkingPosition(coord, tags['aeroway'], width))
+                    heading = coalesceValue(('heading', 'direction'), tags, 360)
+                    self.parkingPositions.append(ParkingPosition(coord, tags['aeroway'], width, heading))
 
             if 'man_made' in tags:
                 #node: man_made=beacon
