@@ -527,6 +527,8 @@ class Aerodrome(SpatialObject):
                     center = taxiway.geometry.buffer(metersToDeg(taxiway.width / 2.0 - shoulderWidth))
                     taxiway2.leftEdgeLine = taxiway2.leftEdgeLine.difference(center)
                     taxiway2.rightEdgeLine = taxiway2.rightEdgeLine.difference(center)
+                    taxiway2.leftDotted = taxiway2.leftDotted.difference(center)
+                    taxiway2.rightDotted = taxiway2.rightDotted.difference(center)
 
         # Now that the taxiways have been combined as such, loop over and
         # remove small islands in the concrete surfaces (generally these
