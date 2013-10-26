@@ -497,17 +497,15 @@ class Aerodrome(SpatialObject):
         return ls
 
     def cleanGeometries(self):
+        # Create an apron trim area which is the combined surfaces of all the aprons.
+        apronGeoms = []
+        for apron in self.listObjectsByType(Apron):
+            apronGeoms.append(apron.geometry)
+
+        apronUnion = cascaded_union(apronGeoms)
+
         self.taxiwaySurfaces = {}
         for taxiway in self.listObjectsByType(Taxiway):
-            for apron in self.listObjectsByType(Apron):
-                # Cut away the parts of the taxiways surface as well as just the taxiway edge lines that are on aprons.
-                taxiway.concreteGeometry = taxiway.concreteGeometry.difference(apron.geometry)
-                taxiway.leftDotted = apron.geometry.intersection(taxiway.leftDotted)
-                taxiway.rightDotted = apron.geometry.intersection(taxiway.rightDotted)
-                taxiway.leftEdgeLine = taxiway.leftEdgeLine.difference(apron.geometry)
-                taxiway.rightEdgeLine = taxiway.rightEdgeLine.difference(apron.geometry)
-
-
             for runway in self.listObjectsByType(Runway):
                 # Cut away the parts of the taxiways surface as well as just the taxiway edge lines that are on runways.
                 taxiway.leftEdgeLine = taxiway.leftEdgeLine.difference(runway.geometryPolygon)
@@ -547,11 +545,19 @@ class Aerodrome(SpatialObject):
 
                     newPolygons.append(Polygon(geom.exterior, newRingList))
 
-                newSurfaces[surfaceType] = MultiPolygon(newPolygons)
+                newSurfaces[surfaceType] = MultiPolygon(newPolygons).difference(apronUnion)
             else:
-                newSurfaces[surfaceType] = surface
+                newSurfaces[surfaceType] = surface.difference(apronUnion)
 
         self.taxiwaySurfaces = newSurfaces
+
+        # Strip away taxiway edge lines on aprons and strip away dotted taxiway
+        # edge lines that are not on aprons.
+        for taxiway in self.listObjectsByType(Taxiway):
+            taxiway.leftDotted = apronUnion.intersection(taxiway.leftDotted)
+            taxiway.rightDotted = apronUnion.intersection(taxiway.rightDotted)
+            taxiway.leftEdgeLine = taxiway.leftEdgeLine.difference(apronUnion)
+            taxiway.rightEdgeLine = taxiway.rightEdgeLine.difference(apronUnion)
 
     def toString(self):
         # Print out the main airport header line
