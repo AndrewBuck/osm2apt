@@ -521,29 +521,6 @@ class Aerodrome(SpatialObject):
             else:
                 self.taxiwaySurfaces[taxiway.surfaceInteger] = taxiway.concreteGeometry
 
-            # Now that the taxiways have been combined as such, loop over and
-            # remove small islands in the concrete surfaces (generally these
-            # are small triangular regions formed between a 'Y' connection
-            # which connects to another taxiway across the top of the 'Y').
-            newSurfaces = {}
-            minArea = math.pow(metersToDeg(30.0), 2)
-            for surfaceType, surface in self.taxiwaySurfaces.items():
-                newPolygons = []
-                if isinstance(surface, MultiPolygon):
-                    for geom in surface.geoms:
-                        newRingList = []
-                        for ring in geom.interiors:
-                            if Polygon(ring).area >= minArea:
-                                newRingList.append(ring)
-
-                        newPolygons.append(Polygon(geom.exterior, newRingList))
-
-                    newSurfaces[surfaceType] = MultiPolygon(newPolygons)
-                else:
-                    newSurfaces[surfaceType] = surface
-
-            self.taxiwaySurfaces = newSurfaces
-
             # Loop over each pair of taxiways and use a buffer along the center
             # of each taxiway to trim out the shoulder markings on the other
             # one; this cleans up the intersections.
@@ -552,6 +529,29 @@ class Aerodrome(SpatialObject):
                     center = taxiway.geometry.buffer(metersToDeg(taxiway.width / 2.0 - shoulderWidth))
                     taxiway2.leftEdgeLine = taxiway2.leftEdgeLine.difference(center)
                     taxiway2.rightEdgeLine = taxiway2.rightEdgeLine.difference(center)
+
+        # Now that the taxiways have been combined as such, loop over and
+        # remove small islands in the concrete surfaces (generally these
+        # are small triangular regions formed between a 'Y' connection
+        # which connects to another taxiway across the top of the 'Y').
+        newSurfaces = {}
+        minArea = math.pow(metersToDeg(30.0), 2)
+        for surfaceType, surface in self.taxiwaySurfaces.items():
+            newPolygons = []
+            if isinstance(surface, MultiPolygon):
+                for geom in surface.geoms:
+                    newRingList = []
+                    for ring in geom.interiors:
+                        if Polygon(ring).area >= minArea:
+                            newRingList.append(ring)
+
+                    newPolygons.append(Polygon(geom.exterior, newRingList))
+
+                newSurfaces[surfaceType] = MultiPolygon(newPolygons)
+            else:
+                newSurfaces[surfaceType] = surface
+
+        self.taxiwaySurfaces = newSurfaces
 
     def toString(self):
         # Print out the main airport header line
