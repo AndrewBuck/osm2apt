@@ -950,8 +950,6 @@ class Osm2apt_class(object):
             if 'aeroway' in tags:
                 # way: aeroway=aerodrome
                 if tags['aeroway'] == 'aerodrome':
-                    print '\nFound an aerodrome.  Tags:\n', tags
-
                     # Get the airport name, if no name is listed use the
                     # default name listed below, no need to skip it in this case.
                     if 'name' in tags:
@@ -959,29 +957,25 @@ class Osm2apt_class(object):
                     else:
                         aerodromeName = 'Unnamed Airport'
 
-                    print 'Airport name is: ', aerodromeName
-
                     # Get the ICAO code first, if that does not exist fall back
                     # on the FAA code, if neither exist we cannot import the
                     # airport so just skip it.
                     aerodromeCode = coalesceValue(('icao', 'faa', 'ref'), tags, '')
                     if aerodromeCode == '':
+                        print '\nFound an aerodrome.  Tags:\n', tags
                         print 'ERROR: Aerodrome does not have an ICAO or FAA code, skipping.  Way ID: ', osmid
                         addOverpassQuery('way', osmid)
                         continue
-
-                    print 'Airport Code is: ', aerodromeCode
 
                     # Get the airport elevation, if there is no 'ele' tag skip
                     # the airport.
                     if 'ele' in tags:
                         aerodromeELE = tags['ele']
                     else:
+                        print '\nFound an aerodrome.  Tags:\n', tags
                         print 'ERROR: Aerodrome does not have an elevation (ele), skipping. Way ID: ', osmid
                         addOverpassQuery('way', osmid)
                         continue
-
-                    print 'Airport Elevation is: ', aerodromeELE
 
                     # We have successfully read all the data for this aerodrome
                     # so add it to the list of completed aerodromes to be put
@@ -990,19 +984,19 @@ class Osm2apt_class(object):
 
                 # way: aeroway=runway
                 elif tags['aeroway'] == 'runway':
-                    print '\nFound a runway.  Tags:\n', tags
-
                     # Check to make sure the runway is not a closed loop, that
                     # is, make sure the first and last nodes are not the same node.
                     if (refs[0] != refs[-1]):
                         runwayEndNodes = [refs[0], refs[-1]]
                     else:
+                        print '\nFound a runway.  Tags:\n', tags
                         print 'ERROR: Runway is a closed loop, skipping.  Way ID: ', osmid
                         addOverpassQuery('way', osmid)
                         continue
 
                     # Check to see if the runway is abandonded, if so skip it.
                     if isAbandoned(tags):
+                        print '\nFound a runway.  Tags:\n', tags
                         print 'NOTICE: Runway is abandoned, skipping. Way ID: ', osmid
                         continue
 
@@ -1017,8 +1011,8 @@ class Osm2apt_class(object):
                     if name != 'unnamed':
                         # TODO: Need to check to see what the runway separator is, most use '/' but some runways use a '-' and others are probably used as well.
                         runwayEndNames = name.split('/')
-                        print 'Runway end names are: ', runwayEndNames
                     else:
+                        print '\nFound a runway.  Tags:\n', tags
                         print 'ERROR: Runway does not have a "ref" or "name" tag set, skipping.  Way ID: ', osmid
                         addOverpassQuery('way', osmid)
                         continue
@@ -1029,15 +1023,11 @@ class Osm2apt_class(object):
                     else:
                         runwaySurface = ''
 
-                    print 'Runway surface is: ', runwaySurface
-
                     # Determine the runway width or use a sensible default.
                     if 'width' in tags:
                         runwayWidth = tags['width']
                     else:
                         runwayWidth = '20 m'
-
-                    print 'Runway width is: ', runwayWidth
 
                     #TODO: Process the 'length' field and set appropriately, currently
                     # the length will be based on the coords of the end nodes on the way.
@@ -1062,10 +1052,9 @@ class Osm2apt_class(object):
 
                 # way: aeroway=taxiway
                 elif tags['aeroway'] == 'taxiway':
-                    print '\nFound a taxiway.  Tags:\n', tags
-
                     # Check to see if the taxiway is abandonded, if so skip it.
                     if isAbandoned(tags):
+                        print '\nFound a taxiway.  Tags:\n', tags
                         print 'NOTICE: Taxiway is abandoned, skipping. Way ID: ', osmid
                         continue
 
@@ -1091,8 +1080,6 @@ class Osm2apt_class(object):
 
                 # way: aeroway=apron
                 if tags['aeroway'] == 'apron':
-                    print '\nFound an apron.  Tags:\n', tags
-
                     name = coalesceValue(('name', 'ref'), tags, '')
                     surface = coalesceValue(('surface'), tags, 'concrete')
 
@@ -1174,7 +1161,7 @@ osm2apt = Osm2apt_class()
 parser = OSMParser(coords_callback=osm2apt.coordsCallback, nodes_callback=osm2apt.nodesCallback, ways_callback=osm2apt.waysCallback)
 parser.parse(inputFileName)
 
-print '\n\n\n=== Results ==='
+print '\n\n=== Results ==='
 
 print 'Successfully read in %s aerodromes\n' % len(osm2apt.aerodromes)
 print 'Successfully read in %s runways' % len(osm2apt.runways)
@@ -1187,11 +1174,11 @@ print 'Successfully read in %s lighted objects' % len(osm2apt.lightedObjects)
 
 print '\nRead in %s osm nodes' % len(osm2apt.coords)
 
-print '\n\n\n=== Building Geometries ==='
+print '\n\n=== Building Geometries ==='
 osm2apt.buildGeometries()
 print 'Done.'
 
-print '\n\n\n=== Assosciating Objects With Aerodromes ==='
+print '\n\n=== Assosciating Objects With Aerodromes ==='
 osm2apt.assosciateObjects()
 print 'Done\n'
 print 'After trying to assosciate each read in object to a nearby aerodrome\n\
@@ -1207,7 +1194,7 @@ print "\t%s\tLighted Objects" % len(osm2apt.lightedObjects)
 
 # TODO: Add all unassociated objects in these lists to the overpass query.
 
-print '\n\n\n=== Outputing apt.dat ==='
+print '\n\n=== Outputing apt.dat ==='
 outputFile = open('apt.dat', 'w')
 outputFile.write('I\n');
 outputFile.write('1000 Version - Imported data from OpenStreetMap processed by osm2apt.py - OpenStreetMap data is licenced under the terms of the ODBL\n');
