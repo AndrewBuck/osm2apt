@@ -1160,7 +1160,7 @@ class Osm2apt_class(object):
         print '\tDone.'
 
 # Main function
-print 'osm2apt version 0.4.1'
+print 'osm2apt version 0.4.2'
 
 # Check and parse commandline
 argumentParser = argparse.ArgumentParser()
