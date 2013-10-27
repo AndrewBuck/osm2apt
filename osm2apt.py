@@ -506,7 +506,7 @@ class Aerodrome(SpatialObject):
 
         apronUnion = cascaded_union(apronGeoms)
 
-        self.taxiwaySurfaces = {}
+        taxiwaySurfaceObjects = {}
         for taxiway in self.listObjectsByType(Taxiway):
             for runway in self.listObjectsByType(Runway):
                 # Cut away the parts of the taxiways surface as well as just the taxiway edge lines that are on runways.
@@ -514,12 +514,12 @@ class Aerodrome(SpatialObject):
                 taxiway.rightEdgeLine = taxiway.rightEdgeLine.difference(runway.geometryPolygon)
                 #taxiway.concreteGeometry = taxiway.concreteGeometry.difference(runway.geometryPolygon)
 
-            # Combine all of the taxiways of the same surface type together into a single multipolygon.
-            # TODO: This could probably be re-factored to use a 'cascading union' from shapely
-            if taxiway.surfaceInteger in self.taxiwaySurfaces:
-                self.taxiwaySurfaces[taxiway.surfaceInteger] = self.taxiwaySurfaces[taxiway.surfaceInteger].union(taxiway.concreteGeometry)
+            # Combine all of the taxiways of the same surface type together
+            # into a list for each type to be unioned together in the loop below.
+            if taxiway.surfaceInteger in taxiwaySurfaceObjects:
+                taxiwaySurfaceObjects[taxiway.surfaceInteger].append(taxiway.concreteGeometry)
             else:
-                self.taxiwaySurfaces[taxiway.surfaceInteger] = taxiway.concreteGeometry
+                taxiwaySurfaceObjects[taxiway.surfaceInteger] = [taxiway.concreteGeometry]
 
             # Loop over each pair of taxiways and use a buffer along the center
             # of each taxiway to trim out the shoulder markings on the other
@@ -531,6 +531,12 @@ class Aerodrome(SpatialObject):
                     taxiway2.rightEdgeLine = taxiway2.rightEdgeLine.difference(center)
                     taxiway2.leftDotted = taxiway2.leftDotted.difference(center)
                     taxiway2.rightDotted = taxiway2.rightDotted.difference(center)
+
+        # Now that we have a list of all taxiways of for each surface type,
+        # combine each list into a single large object.
+        self.taxiwaySurfaces = {}
+        for surfaceInteger, taxiwayList in taxiwaySurfaceObjects.items():
+            self.taxiwaySurfaces[surfaceInteger] = cascaded_union(taxiwayList)
 
         # Now that the taxiways have been combined as such, loop over and
         # remove small islands in the concrete surfaces (generally these
